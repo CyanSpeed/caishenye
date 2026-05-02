@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm --version)",
+      "Bash(npm install *)",
+      "Bash(tasklist)",
+      "Bash(npx vite *)",
+      "Bash(npx electron *)",
+      "Bash(node -e \"console.log\\(require\\('electron/package.json'\\).version\\)\")"
+    ]
+  }
+}
