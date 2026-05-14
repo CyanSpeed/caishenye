@@ -172,16 +172,17 @@ import {
   NSelect, NDatePicker, NSpace, useMessage,
 } from 'naive-ui'
 import { PlusOutlined } from '@vicons/antd'
-import { mockPhysicalAssets } from '../../mock/data'
+import { useFinance } from '../composables/useFinance'
 import type { PhysicalAsset, PhysicalAssetCategory, PhysicalAssetStatus } from '@shared/types'
 import { useFormatter } from '../composables/useFormatter'
 import type { SelectOption } from 'naive-ui'
 
 const { currencyPlain } = useFormatter()
+const { state: financeState, addPhysicalAsset: createPhysicalAsset } = useFinance()
 const message = useMessage()
 
 // ---- Reactive state ----
-const items = ref<PhysicalAsset[]>(mockPhysicalAssets.map(a => ({ ...a })))
+const items = computed(() => financeState.physicalAssets)
 const activeTab = ref<'all' | PhysicalAssetCategory>('all')
 const expandedId = ref<number | null>(null)
 const showAddModal = ref(false)
@@ -289,25 +290,27 @@ function toggleExpand(id: number) {
 }
 
 // ---- Add asset ----
-function handleAdd() {
-  addFormRef.value?.validate((errors: any) => {
+async function handleAdd() {
+  addFormRef.value?.validate(async (errors: any) => {
     if (errors) return
-    const newItem: PhysicalAsset = {
-      id: Date.now(),
-      name: addForm.value.name,
-      category: addForm.value.category,
-      icon_emoji: addForm.value.icon_emoji || '📦',
-      purchase_price: String(addForm.value.purchase_price ?? 0),
-      purchase_date: addForm.value.purchase_date,
-      current_value: String(addForm.value.current_value ?? addForm.value.purchase_price ?? 0),
-      image_url: '',
-      notes: addForm.value.notes,
-      status: '使用中',
+    try {
+      await createPhysicalAsset({
+        name: addForm.value.name,
+        category: addForm.value.category,
+        icon_emoji: addForm.value.icon_emoji || '📦',
+        purchase_price: String(addForm.value.purchase_price ?? 0),
+        purchase_date: addForm.value.purchase_date,
+        current_value: String(addForm.value.current_value ?? addForm.value.purchase_price ?? 0),
+        image_url: '',
+        notes: addForm.value.notes,
+        status: '使用中',
+      })
+      message.success('添加成功')
+      showAddModal.value = false
+      addForm.value = { name: '', category: '数码', icon_emoji: '', purchase_price: null, current_value: null, purchase_date: todayStr, notes: '' }
+    } catch {
+      message.error('添加失败')
     }
-    items.value.push(newItem)
-    message.success('添加成功')
-    showAddModal.value = false
-    addForm.value = { name: '', category: '数码', icon_emoji: '', purchase_price: null, current_value: null, purchase_date: todayStr, notes: '' }
   })
 }
 

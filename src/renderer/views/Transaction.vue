@@ -198,14 +198,12 @@ const filteredTransactions = computed(() => {
   })
 })
 
-function handleSubmit() {
-  formRef.value?.validate((errors: any) => {
+async function handleSubmit() {
+  formRef.value?.validate(async (errors: any) => {
     if (errors) return
     submitting.value = true
-    // Simulate async — will be replaced by IPC call
-    setTimeout(() => {
-      addTransaction({
-        id: Date.now(),
+    try {
+      await addTransaction({
         date: form.value.date,
         type: form.value.type,
         amount: String(form.value.amount ?? 0),
@@ -216,13 +214,15 @@ function handleSubmit() {
         tags: '[]',
       })
       message.success('记账成功')
-      // Reset form
       form.value.amount = null
       form.value.category_id = null
       form.value.to_account_id = null
       form.value.description = ''
+    } catch {
+      message.error('记账失败')
+    } finally {
       submitting.value = false
-    }, 600)
+    }
   })
 }
 </script>

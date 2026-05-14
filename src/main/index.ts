@@ -1,5 +1,8 @@
 import { app, BrowserWindow, ipcMain } from 'electron'
 import { join } from 'path'
+import { initDatabase, closeDatabase } from './db/init'
+import * as ops from './db/operations'
+import { IPC_CHANNELS } from '@shared/types'
 
 let mainWindow: BrowserWindow | null = null
 
@@ -25,7 +28,38 @@ function createWindow() {
   }
 }
 
+function registerIpcHandlers() {
+  // Ping
+  ipcMain.handle(IPC_CHANNELS.PING, () => 'pong')
+
+  // Accounts
+  ipcMain.handle(IPC_CHANNELS.GET_ACCOUNTS, () => ops.getAllAccounts())
+  ipcMain.handle(IPC_CHANNELS.ADD_ACCOUNT, (_event, account) => ops.addAccount(account))
+  ipcMain.handle(IPC_CHANNELS.UPDATE_ACCOUNT, (_event, id, updates) => ops.updateAccount(id, updates))
+  ipcMain.handle(IPC_CHANNELS.DELETE_ACCOUNT, (_event, id) => ops.deleteAccount(id))
+
+  // Categories
+  ipcMain.handle(IPC_CHANNELS.GET_CATEGORIES, () => ops.getAllCategories())
+
+  // Transactions
+  ipcMain.handle(IPC_CHANNELS.GET_TRANSACTIONS, () => ops.getAllTransactions())
+  ipcMain.handle(IPC_CHANNELS.ADD_TRANSACTION, (_event, tx) => ops.addTransaction(tx))
+
+  // Investment Snapshots
+  ipcMain.handle(IPC_CHANNELS.GET_INVESTMENT_SNAPSHOTS, () => ops.getAllInvestmentSnapshots())
+  ipcMain.handle(IPC_CHANNELS.ADD_INVESTMENT_SNAPSHOT, (_event, snapshot) => ops.addInvestmentSnapshot(snapshot))
+  ipcMain.handle(IPC_CHANNELS.UPDATE_INVESTMENT_SNAPSHOT, (_event, id, updates) => ops.updateInvestmentSnapshot(id, updates))
+
+  // Physical Assets
+  ipcMain.handle(IPC_CHANNELS.GET_PHYSICAL_ASSETS, () => ops.getAllPhysicalAssets())
+  ipcMain.handle(IPC_CHANNELS.ADD_PHYSICAL_ASSET, (_event, asset) => ops.addPhysicalAsset(asset))
+  ipcMain.handle(IPC_CHANNELS.UPDATE_PHYSICAL_ASSET, (_event, id, updates) => ops.updatePhysicalAsset(id, updates))
+  ipcMain.handle(IPC_CHANNELS.DELETE_PHYSICAL_ASSET, (_event, id) => ops.deletePhysicalAsset(id))
+}
+
 app.whenReady().then(() => {
+  initDatabase()
+  registerIpcHandlers()
   createWindow()
 
   app.on('activate', () => {
@@ -36,10 +70,8 @@ app.whenReady().then(() => {
 })
 
 app.on('window-all-closed', () => {
+  closeDatabase()
   if (process.platform !== 'darwin') {
     app.quit()
   }
 })
-
-// Placeholder IPC handler — will be expanded with actual DB operations
-ipcMain.handle('ping', () => 'pong')

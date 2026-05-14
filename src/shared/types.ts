@@ -63,13 +63,21 @@ export interface Category {
 
 export const IPC_CHANNELS = {
   PING: 'ping',
+  // Accounts
   GET_ACCOUNTS: 'get-accounts',
-  ADD_TRANSACTION: 'add-transaction',
+  ADD_ACCOUNT: 'add-account',
+  UPDATE_ACCOUNT: 'update-account',
+  DELETE_ACCOUNT: 'delete-account',
+  // Transactions
   GET_TRANSACTIONS: 'get-transactions',
-  GET_STATISTICS: 'get-statistics',
-  GET_NET_WORTH: 'get-net-worth',
-  GET_ASSET_ALLOCATION: 'get-asset-allocation',
+  ADD_TRANSACTION: 'add-transaction',
+  // Categories
+  GET_CATEGORIES: 'get-categories',
+  // Investment Snapshots
+  GET_INVESTMENT_SNAPSHOTS: 'get-investment-snapshots',
+  ADD_INVESTMENT_SNAPSHOT: 'add-investment-snapshot',
   UPDATE_INVESTMENT_SNAPSHOT: 'update-investment-snapshot',
+  // Physical Assets
   GET_PHYSICAL_ASSETS: 'get-physical-assets',
   ADD_PHYSICAL_ASSET: 'add-physical-asset',
   UPDATE_PHYSICAL_ASSET: 'update-physical-asset',

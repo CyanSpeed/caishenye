@@ -174,6 +174,7 @@ function initAssetChart() {
     const tt = chartTooltipStyle()
     const textColor = chartTextColor()
     chart.setOption({
+      backgroundColor: 'transparent',
       tooltip: {
         trigger: 'item',
         formatter: (p: any) => `${p.name}: ¥${p.value.toLocaleString()}`,
@@ -206,6 +207,7 @@ function initLiabilityChart() {
     const tt = chartTooltipStyle()
     const textColor = chartTextColor()
     chart.setOption({
+      backgroundColor: 'transparent',
       tooltip: {
         trigger: 'item',
         formatter: (p: any) => `${p.name}: ¥${p.value.toLocaleString()}`,
@@ -213,7 +215,7 @@ function initLiabilityChart() {
       },
       series: [{
         type: 'pie',
-        radius: ['40%', '72%'],
+        radius: ['50%', '75%'],
         center: ['50%', '52%'],
         roseType: 'area',
         itemStyle: { borderRadius: 6, borderColor: 'transparent', borderWidth: 0 },

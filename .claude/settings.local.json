@@ -9,7 +9,10 @@
       "Bash(node -e \"console.log\\(require\\('electron/package.json'\\).version\\)\")",
       "Bash(python .claude/skills/ui-ux-pro-max/scripts/search.py \"fintech personal finance dashboard glassmorphism dark mode modern flat\" --design-system -p \"财神爷\" -f markdown)",
       "Bash(python .claude/skills/ui-ux-pro-max/scripts/search.py \"dashboard chart data visualization\" --domain chart -n 5)",
-      "Bash(python .claude/skills/ui-ux-pro-max/scripts/search.py \"glassmorphism animation composable state\" --stack vue -n 5)"
+      "Bash(python .claude/skills/ui-ux-pro-max/scripts/search.py \"glassmorphism animation composable state\" --stack vue -n 5)",
+      "Bash(npx vue-tsc *)",
+      "Bash(npm view *)",
+      "Bash(npx @electron/rebuild -f -w better-sqlite3)"
     ]
   }
 }

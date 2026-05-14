@@ -1,23 +1,55 @@
 import { reactive, computed } from 'vue'
 import Decimal from 'decimal.js'
-import { mockAccounts, mockTransactions, mockSnapshots, mockCategories } from '../../mock/data'
-import type { Account, Transaction, InvestmentSnapshot, Category } from '@shared/types'
+import type { Account, Transaction, InvestmentSnapshot, Category, PhysicalAsset } from '@shared/types'
 
 interface FinanceState {
   accounts: Account[]
   transactions: Transaction[]
   snapshots: InvestmentSnapshot[]
   categories: Category[]
+  physicalAssets: PhysicalAsset[]
+  initialized: boolean
 }
 
 const state = reactive<FinanceState>({
-  accounts: mockAccounts.map(a => ({ ...a })),
-  transactions: mockTransactions.map(t => ({ ...t })),
-  snapshots: mockSnapshots.map(s => ({ ...s })),
-  categories: mockCategories.map(c => ({ ...c })),
+  accounts: [],
+  transactions: [],
+  snapshots: [],
+  categories: [],
+  physicalAssets: [],
+  initialized: false,
 })
 
+let initPromise: Promise<void> | null = null
+
+async function init() {
+  if (state.initialized) return
+  if (initPromise) return initPromise
+
+  initPromise = (async () => {
+    const api = window.electronAPI
+    const [accounts, transactions, snapshots, categories, physicalAssets] = await Promise.all([
+      api.getAccounts(),
+      api.getTransactions(),
+      api.getInvestmentSnapshots(),
+      api.getCategories(),
+      api.getPhysicalAssets(),
+    ])
+    state.accounts = accounts as Account[]
+    state.transactions = transactions as Transaction[]
+    state.snapshots = snapshots as InvestmentSnapshot[]
+    state.categories = categories as Category[]
+    state.physicalAssets = physicalAssets as PhysicalAsset[]
+    state.initialized = true
+  })()
+
+  return initPromise
+}
+
 export function useFinance() {
+  // Trigger init on first use (non-blocking)
+  if (!state.initialized) init()
+
   // ---- Accounts ----
   const assetAccounts = computed(() => state.accounts.filter(a => a.type === 'asset' && a.is_active))
   const liabilityAccounts = computed(() => state.accounts.filter(a => a.type === 'liability' && a.is_active))
@@ -33,7 +65,7 @@ export function useFinance() {
   const netWorth = computed(() => totalAssets.value.minus(totalLiabilities.value))
 
   // ---- Monthly Summary ----
-  const currentMonth = new Date().toISOString().slice(0, 7) // "2026-05"
+  const currentMonth = new Date().toISOString().slice(0, 7)
 
   const monthlyIncome = computed(() =>
     state.transactions
@@ -151,13 +183,40 @@ export function useFinance() {
     return state.categories.find(c => c.id === id)
   }
 
-  // ---- Mutations (for later SQLite integration) ----
-  function addTransaction(tx: Transaction) {
-    state.transactions.push(tx)
+  // ---- Mutations: Transactions ----
+  async function addTransaction(tx: Omit<Transaction, 'id'>): Promise<Transaction> {
+    const created = await window.electronAPI.addTransaction(tx) as Transaction
+    state.transactions.push(created)
+    // Refresh accounts (balances changed)
+    const accounts = await window.electronAPI.getAccounts() as Account[]
+    state.accounts = accounts
+    return created
+  }
+
+  // ---- Mutations: Physical Assets ----
+  async function addPhysicalAsset(asset: Omit<PhysicalAsset, 'id'>): Promise<PhysicalAsset> {
+    const created = await window.electronAPI.addPhysicalAsset(asset) as PhysicalAsset
+    state.physicalAssets.push(created)
+    return created
+  }
+
+  async function updatePhysicalAsset(id: number, updates: Partial<PhysicalAsset>): Promise<void> {
+    await window.electronAPI.updatePhysicalAsset(id, updates)
+    const idx = state.physicalAssets.findIndex(a => a.id === id)
+    if (idx !== -1) {
+      state.physicalAssets[idx] = { ...state.physicalAssets[idx], ...updates }
+    }
+  }
+
+  async function deletePhysicalAsset(id: number): Promise<void> {
+    await window.electronAPI.deletePhysicalAsset(id)
+    const idx = state.physicalAssets.findIndex(a => a.id === id)
+    if (idx !== -1) state.physicalAssets.splice(idx, 1)
   }
 
   return {
     state,
+    init,
     assetAccounts,
     liabilityAccounts,
     investmentAccounts,
@@ -178,5 +237,8 @@ export function useFinance() {
     getAccountById,
     getCategoryById,
     addTransaction,
+    addPhysicalAsset,
+    updatePhysicalAsset,
+    deletePhysicalAsset,
   }
 }
