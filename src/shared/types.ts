@@ -36,6 +36,22 @@ export interface InvestmentSnapshot {
   note: string
 }
 
+export type PhysicalAssetCategory = '家电' | '数码' | '汽车' | '奢侈品'
+export type PhysicalAssetStatus = '使用中' | '已出售' | '已报废'
+
+export interface PhysicalAsset {
+  id: number
+  name: string
+  category: PhysicalAssetCategory
+  icon_emoji: string
+  purchase_price: string
+  purchase_date: string
+  current_value: string
+  image_url: string
+  notes: string
+  status: PhysicalAssetStatus
+}
+
 export interface Category {
   id: number
   name: string
@@ -54,4 +70,8 @@ export const IPC_CHANNELS = {
   GET_NET_WORTH: 'get-net-worth',
   GET_ASSET_ALLOCATION: 'get-asset-allocation',
   UPDATE_INVESTMENT_SNAPSHOT: 'update-investment-snapshot',
+  GET_PHYSICAL_ASSETS: 'get-physical-assets',
+  ADD_PHYSICAL_ASSET: 'add-physical-asset',
+  UPDATE_PHYSICAL_ASSET: 'update-physical-asset',
+  DELETE_PHYSICAL_ASSET: 'delete-physical-asset',
 } as const

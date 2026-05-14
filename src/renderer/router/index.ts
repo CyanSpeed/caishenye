@@ -13,6 +13,21 @@ const router = createRouter({
       name: 'Accounts',
       component: () => import('../views/Accounts.vue'),
     },
+    {
+      path: '/transaction',
+      name: 'Transaction',
+      component: () => import('../views/Transaction.vue'),
+    },
+    {
+      path: '/investment',
+      name: 'Investment',
+      component: () => import('../views/Investment.vue'),
+    },
+    {
+      path: '/physical-assets',
+      name: 'PhysicalAssets',
+      component: () => import('../views/PhysicalAssets.vue'),
+    },
   ],
 })
 

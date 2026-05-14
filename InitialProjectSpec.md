@@ -72,6 +72,22 @@
     - `type`: TEXT (income/expense)
     - `icon`: TEXT (图标标识)
 
+5.  实体资产表（physical_assets）：
+| 字段名 | 类型 | 描述 |
+| :--- | :--- | :--- |
+| `id` | INTEGER | 主键，自增 |
+| `name` | TEXT | 物品名称 (如 "TCL 85Q10L 电视") |
+| `category` | TEXT | 分类 (如 "家电", "数码", "汽车", "奢侈品") |
+| `icon_emoji` | TEXT | 用于展示的Emoji图标 (如 "📺", "🚗", "💍") |
+| `purchase_price` | REAL | 购买价格 (精确到分) |
+| `purchase_date` | TEXT | 购买日期 (ISO 8601 格式) |
+| `current_value` | REAL | 当前估值 (可选，用于汽车或保值品) |
+| `image_url` | TEXT | 物品照片路径 (本地文件路径) |
+| `notes` | TEXT | 备注 (如 "保修期到2026年") |
+| `status` | TEXT | 状态 ("使用中", "已出售", "已报废") |
+
+
+
 #### 核心功能模块 (Core Functional Modules)
 
 1.  **全景仪表盘 (Dashboard)**
@@ -96,6 +112,10 @@
     - 利用 `investment_snapshots` 表的数据，使用 ECharts 绘制**“资产净值增长曲线”**。
     - 计算并展示：总投入本金、当前市值、**累计收益金额**、**年化收益率**（简单计算即可）。
 
+5. 实物资产管理（physical_assets）
+    - 核心理念：不仅仅是记录买了什么，更重要的是计算“日均使用成本”。通过计算“总价 ÷ 使用天数”，让用户直观感受到这件物品“值不值”。
+    - 适用对象：家电数码：电视、手机、电脑（折旧快，强调使用频率）。汽车：强调购买价与当前估值。奢侈品：包包、首饰、手表（可能保值甚至增值）。
+
 #### 关键实现细节 (Implementation Details)
 
 - **精度处理**: 数据库中金额字段使用 TEXT 存储，读取后在 Node.js 中必须转换为 `new Decimal(string)` 进行运算，最后转回字符串存入数据库。
@@ -116,15 +136,29 @@
 ■ add-transaction: 接收一个交易对象，将其插入transactions表，并同步更新accounts表中的对应账户余额。此操作必须在一个事务中完成，以保证数据一致性。
 ■ get-transactions: 返回所有交易记录，并按日期倒序排列。
 ■ get-statistics: 返回用于图表展示的统计数据，例如“本月各类别支出总额”。
-3. 前端界面模块 (src/renderer/)
+
+#### 前端界面模块 (src/renderer/)
+
 ○ 主布局 (src/renderer/App.vue): 使用 naive-ui 的 n-layout 构建一个经典的侧边栏导航布局。
+
 ○ 仪表盘页面 (src/renderer/views/Dashboard.vue):
 ■ 资产总览卡片: 顶部展示总资产、本月收入、本月支出三个卡片，卡片加载时需有数字滚动的动画效果。
 ■ 收支趋势图: 使用 ECharts 绘制一条折线图，展示近6个月的收入与支出趋势。
+
 ○ 记账页面 (src/renderer/views/Transaction.vue):
 ■ 交易表单: 一个使用 n-form 构建的表单，包含金额、账户、分类、日期、备注等字段。
 ■ 提交动画: 点击“记一笔”按钮后，按钮本身应有一个加载动画，成功后整个表单区域应有一个平滑的收缩动画，并提示成功。
 ■ 交易列表: 页面下方展示最近的交易记录，使用 n-data-table 组件。
+
+○ 实体资产页面 (src/renderer/views/physicalAssets.vue):
+计算已使用天数：Today - purchase_date
+计算日均成本：purchase_price / days_used
+注意：如果天数超过预设的折旧年限（如3年），日均成本曲线应趋于平缓或归零。
+折旧曲线生成：
+生成一个数据集，用于前端绘制图表。
+X轴：时间 (从购买日到今天)。
+Y轴：剩余价值 或 累计日均成本。
+
 关键实现细节与规范 (Key Implementation Details \& Standards)
 ● 财务精度: 所有从数据库读取的金额、在前端展示、以及在后端计算的金额，都必须使用 decimal.js 的 Decimal 类型进行处理。禁止使用原生JavaScript的 number 类型进行任何加减乘除运算。
 ● IPC通信: 渲染进程与主进程的通信必须使用 ipcRenderer.invoke 和 ipcMain.handle 的请求-响应模式，确保操作的同步性和结果的可靠返回。
