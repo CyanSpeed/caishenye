@@ -32,6 +32,23 @@
       </div>
     </div>
 
+    <!-- Overview Depreciation Chart -->
+    <div class="glass-card overview-chart-card">
+      <div class="card-title-row">
+        <span class="card-title">实物资产折旧分析</span>
+        <div class="time-switcher">
+          <button
+            v-for="opt in overviewTimeOptions"
+            :key="opt.value"
+            class="time-btn"
+            :class="{ active: selectedOverviewRange === opt.value }"
+            @click="setOverviewRange(opt.value)"
+          >{{ opt.label }}</button>
+        </div>
+      </div>
+      <div ref="overviewChartRef" class="overview-chart-box"></div>
+    </div>
+
     <!-- Category Tabs -->
     <div class="tabs-row">
       <button
@@ -178,7 +195,7 @@ import { useFormatter } from '../composables/useFormatter'
 import type { SelectOption } from 'naive-ui'
 
 const { currencyPlain } = useFormatter()
-const { state: financeState, addPhysicalAsset: createPhysicalAsset } = useFinance()
+const { state: financeState, addPhysicalAsset: createPhysicalAsset, physicalAssetsDepreciation } = useFinance()
 const message = useMessage()
 
 // ---- Reactive state ----
@@ -323,6 +340,112 @@ function setChartRef(id: number, el: any) { if (el) chartRefs[id] = el }
 
 function isDark() { return document.documentElement.classList.contains('theme-dark') }
 
+// ---- Overview Depreciation Chart ----
+const overviewChartRef = ref<HTMLElement | null>(null)
+let overviewChart: echarts.ECharts | null = null
+
+const overviewTimeOptions = [
+  { label: '近半年', value: '6m' },
+  { label: '近1年', value: '1y' },
+  { label: '近3年', value: '3y' },
+  { label: '全部', value: 'all' },
+]
+const selectedOverviewRange = ref('all')
+
+function setOverviewRange(range: string) {
+  selectedOverviewRange.value = range
+  initOverviewDepreciationChart()
+}
+
+function initOverviewDepreciationChart() {
+  if (!overviewChartRef.value || overviewChartRef.value.clientWidth === 0) return
+  const existing = echarts.getInstanceByDom(overviewChartRef.value)
+  if (existing) existing.dispose()
+
+  overviewChart = echarts.init(overviewChartRef.value, isDark() ? 'dark' : undefined)
+  const assets = physicalAssetsDepreciation.value
+  const textColor = isDark() ? '#8B949E' : '#656D76'
+  const lineColor = isDark() ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)'
+  const splitColor = isDark() ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.04)'
+  const ttBg = isDark() ? 'rgba(13,17,23,0.95)' : 'rgba(255,255,255,0.95)'
+  const ttBorder = isDark() ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.08)'
+  const colors = ['#60A5FA', '#A78BFA', '#FBBF24', '#F87171', '#34D399']
+
+  // 时间范围过滤
+  const now = new Date()
+  let cutoffDate = ''
+  switch (selectedOverviewRange.value) {
+    case '6m': { const d = new Date(now); d.setMonth(d.getMonth() - 6); cutoffDate = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`; break }
+    case '1y': { const d = new Date(now); d.setFullYear(d.getFullYear() - 1); cutoffDate = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`; break }
+    case '3y': { const d = new Date(now); d.setFullYear(d.getFullYear() - 3); cutoffDate = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`; break }
+    default: cutoffDate = ''
+  }
+
+  const allDates = new Set<string>()
+  assets.forEach(a => a.points.forEach(p => {
+    if (!cutoffDate || p.date >= cutoffDate) allDates.add(p.date)
+  }))
+  const sortedDates = [...allDates].sort()
+
+  overviewChart.setOption({
+    tooltip: {
+      trigger: 'axis',
+      backgroundColor: ttBg,
+      borderColor: ttBorder,
+      formatter: (params: any) => {
+        let html = `<b>${params[0].axisValue}</b><br/>`
+        params.forEach((p: any) => {
+          if (p.value != null) html += `${p.marker} ${p.seriesName}: ¥${Number(p.value).toLocaleString()}<br/>`
+        })
+        return html
+      },
+    },
+    legend: {
+      data: assets.map(a => a.icon + ' ' + a.name),
+      textStyle: { color: textColor, fontSize: 11 },
+      bottom: 0,
+      type: 'scroll',
+    },
+    grid: { left: 60, right: 24, top: 16, bottom: 48 },
+    xAxis: {
+      type: 'category',
+      data: sortedDates.map(d => d.slice(2)),
+      axisLabel: { color: textColor, fontSize: 10, rotate: 30 },
+      axisLine: { lineStyle: { color: lineColor } },
+      axisTick: { show: false },
+    },
+    yAxis: {
+      type: 'value',
+      splitLine: { lineStyle: { color: splitColor } },
+      axisLabel: {
+        color: textColor,
+        formatter: (v: number) => v >= 10000 ? (v / 10000).toFixed(1) + '万' : String(v),
+      },
+    },
+    series: assets.map((asset, i) => ({
+      name: asset.icon + ' ' + asset.name,
+      type: 'line',
+      smooth: true,
+      symbol: 'circle',
+      symbolSize: 5,
+      data: sortedDates.map(date => {
+        const point = asset.points.find(p => p.date === date)
+        return point ? point.value : null
+      }),
+      lineStyle: { color: colors[i % colors.length], width: 2 },
+      itemStyle: { color: colors[i % colors.length] },
+      connectNulls: true,
+      animationDuration: 800,
+      animationEasing: 'cubicOut',
+    })),
+  })
+
+  requestAnimationFrame(() => overviewChart!.resize())
+  const obs = new ResizeObserver(() => overviewChart?.resize())
+  obs.observe(overviewChartRef.value)
+  observers.push(obs)
+}
+
 const DEPRECIATION_YEARS: Record<string, number> = {
   '家电': 5, '数码': 3, '汽车': 10, '奢侈品': 20,
 }
@@ -439,6 +562,7 @@ function initDepreciationChart(item: PhysicalAsset) {
 }
 
 function initAllCharts() {
+  initOverviewDepreciationChart()
   filteredAssets.value.forEach(initDepreciationChart)
 }
 
@@ -449,6 +573,7 @@ onMounted(() => {
 onUnmounted(() => {
   observers.forEach(o => o.disconnect())
   Object.values(charts).forEach(c => c.dispose())
+  overviewChart?.dispose()
 })
 </script>
 
@@ -530,6 +655,20 @@ onUnmounted(() => {
 .text-red { color: #FF5630; }
 .text-orange { color: #FF8B64; }
 .text-muted { color: var(--text-muted); }
+
+/* Overview Chart Card */
+.overview-chart-card { margin-bottom: 20px; padding: 20px 24px; }
+.card-title-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; }
+.card-title { font-size: 16px; font-weight: 600; color: var(--text-primary); }
+.time-switcher { display: flex; gap: 4px; background: var(--bg-page, #F0F2F5); padding: 3px; border-radius: 10px; }
+.time-btn {
+  padding: 5px 14px; border-radius: 8px; border: none; background: transparent;
+  color: var(--text-secondary); font-size: 12px; font-weight: 500;
+  cursor: pointer; transition: all 0.2s ease;
+}
+.time-btn:hover { color: var(--text-primary); }
+.time-btn.active { background: var(--bg-card, #FFFFFF); color: var(--text-primary); box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+.overview-chart-box { width: 100%; height: 340px; }
 
 /* Transitions */
 .expand-enter-active, .expand-leave-active { transition: all 0.3s ease; }

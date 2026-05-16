@@ -175,6 +175,206 @@ export function useFinance() {
     })
   })
 
+  // ---- Helper: get last N month keys ----
+  function getLastNMonths(n: number): string[] {
+    const now = new Date()
+    const months: string[] = []
+    for (let i = n - 1; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
+      months.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`)
+    }
+    return months
+  }
+
+  // ---- 1. Net Worth Trend (all months with data) ----
+  const netWorthTrend = computed(() => {
+    // 找到最早交易月份
+    const dates = state.transactions.map(t => t.date).filter(Boolean).sort()
+    const earliest = dates[0]
+    const now = new Date()
+    let startMonth: string
+    if (earliest) {
+      startMonth = earliest.slice(0, 7)
+    } else {
+      startMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+    }
+
+    // 生成从最早月份到当前月份的完整列表
+    const months: string[] = []
+    const [startY, startM] = startMonth.split('-').map(Number)
+    const endY = now.getFullYear()
+    const endM = now.getMonth() + 1
+    let y = startY, m = startM
+    while (y < endY || (y === endY && m <= endM)) {
+      months.push(`${y}-${String(m).padStart(2, '0')}`)
+      m++
+      if (m > 12) { m = 1; y++ }
+    }
+
+    // 从当前净资产反推：每月净收支 = 收入 - 支出（不含转账）
+    const monthlyNets = months.map(month => {
+      const income = state.transactions
+        .filter(t => t.type === 'income' && t.date.startsWith(month))
+        .reduce((s, t) => s.plus(new Decimal(t.amount)), new Decimal(0))
+      const expense = state.transactions
+        .filter(t => t.type === 'expense' && t.date.startsWith(month))
+        .reduce((s, t) => s.plus(new Decimal(t.amount)), new Decimal(0))
+      return income.minus(expense)
+    })
+    // 从当前净资产开始，逐月回减得到每月末净资产
+    const currentNW = netWorth.value
+    const len = months.length
+    const values: number[] = new Array(len).fill(0)
+    values[len - 1] = currentNW.toNumber()
+    for (let i = len - 2; i >= 0; i--) {
+      values[i] = new Decimal(values[i + 1]).minus(monthlyNets[i + 1]).toNumber()
+    }
+    return months.map((m, i) => ({ month: m, value: Math.round(values[i]) }))
+  })
+
+  // ---- 2. Asset Composition (accounts + physical assets) ----
+  const assetComposition = computed(() => {
+    // 流动性：现金 + 银行
+    let liquidity = new Decimal(0)
+    assetAccounts.value
+      .filter(a => a.sub_type === 'cash' || a.sub_type === 'bank')
+      .forEach(a => { liquidity = liquidity.plus(new Decimal(a.balance)) })
+
+    // 投资性：投资账户
+    let investment = new Decimal(0)
+    assetAccounts.value
+      .filter(a => a.sub_type === 'investment')
+      .forEach(a => { investment = investment.plus(new Decimal(a.balance)) })
+
+    // 固定资产：汽车类实物
+    let fixed = new Decimal(0)
+    state.physicalAssets
+      .filter(a => a.status === '使用中' && a.category === '汽车')
+      .forEach(a => { fixed = fixed.plus(new Decimal(a.current_value)) })
+
+    // 消费性资产：家电 + 数码 + 奢侈品
+    let consumer = new Decimal(0)
+    state.physicalAssets
+      .filter(a => a.status === '使用中' && a.category !== '汽车')
+      .forEach(a => { consumer = consumer.plus(new Decimal(a.current_value)) })
+
+    return [
+      { name: '流动性资产', value: liquidity.toNumber(), category: 'liquidity' },
+      { name: '投资性资产', value: investment.toNumber(), category: 'investment' },
+      { name: '固定资产', value: fixed.toNumber(), category: 'fixed' },
+      { name: '消费性资产', value: consumer.toNumber(), category: 'consumer' },
+    ].filter(g => g.value > 0)
+  })
+
+  // ---- 3. Cash Flow Sankey Data ----
+  const cashFlowData = computed(() => {
+    const months = getLastNMonths(6)
+    // 左侧：收入来源（按分类聚合）
+    const incomeByCategory: Record<string, number> = {}
+    const expenseByCategory: Record<string, number> = {}
+
+    months.forEach(month => {
+      state.transactions
+        .filter(t => t.date.startsWith(month))
+        .forEach(t => {
+          const cat = state.categories.find(c => c.id === t.category_id)
+          const catName = cat?.name || (t.type === 'income' ? '其他收入' : '其他支出')
+          if (t.type === 'income') {
+            incomeByCategory[catName] = (incomeByCategory[catName] || 0) + new Decimal(t.amount).toNumber()
+          } else if (t.type === 'expense') {
+            expenseByCategory[catName] = (expenseByCategory[catName] || 0) + new Decimal(t.amount).toNumber()
+          }
+        })
+    })
+
+    const incomeNodes = Object.entries(incomeByCategory).map(([name, value]) => ({ name, value }))
+    const expenseNodes = Object.entries(expenseByCategory).map(([name, value]) => ({ name, value }))
+
+    // 桑基图链接：收入分类 -> 支出分类，按比例分配
+    const totalIncome = incomeNodes.reduce((s, n) => s + n.value, 0)
+    const totalExpense = expenseNodes.reduce((s, n) => s + n.value, 0)
+    const links: { source: string; target: string; value: number }[] = []
+
+    if (totalIncome > 0 && totalExpense > 0) {
+      incomeNodes.forEach(income => {
+        expenseNodes.forEach(expense => {
+          const ratio = (income.value / totalIncome) * (expense.value / totalExpense)
+          const value = Math.round(ratio * Math.min(totalIncome, totalExpense))
+          if (value > 0) {
+            links.push({ source: income.name, target: expense.name, value })
+          }
+        })
+      })
+    }
+
+    return { incomeNodes, expenseNodes, links }
+  })
+
+  // ---- 4. Monthly Comparison (12 months) ----
+  const monthlyComparison = computed(() => {
+    const months = getLastNMonths(12)
+    return months.map(month => {
+      const income = state.transactions
+        .filter(t => t.type === 'income' && t.date.startsWith(month))
+        .reduce((s, t) => s.plus(new Decimal(t.amount)), new Decimal(0))
+      const expense = state.transactions
+        .filter(t => t.type === 'expense' && t.date.startsWith(month))
+        .reduce((s, t) => s.plus(new Decimal(t.amount)), new Decimal(0))
+      return { month: month.slice(5), income: income.toNumber(), expense: expense.toNumber() }
+    })
+  })
+
+  // ---- 5. Physical Assets Depreciation Analysis ----
+  const DEPRECIATION_YEARS: Record<string, number> = { '家电': 5, '数码': 3, '汽车': 10, '奢侈品': 20 }
+  const RESIDUAL_RATE = 0.05
+
+  const physicalAssetsDepreciation = computed(() => {
+    const activeAssets = state.physicalAssets.filter(a => a.status === '使用中')
+
+    const assetsWithCost = activeAssets.map(asset => {
+      const purchasePrice = new Decimal(asset.purchase_price)
+      const purchaseDate = new Date(asset.purchase_date)
+      const now = new Date()
+      const daysOwned = Math.max(1, Math.floor((now.getTime() - purchaseDate.getTime()) / 86400000))
+      const years = DEPRECIATION_YEARS[asset.category] || 5
+      const residualValue = purchasePrice.mul(RESIDUAL_RATE)
+      const totalDepreciation = purchasePrice.minus(residualValue)
+      const dailyCost = totalDepreciation.div(years * 365)
+      const totalDays = years * 365
+
+      // 生成折旧曲线数据点（按月）
+      const points: { date: string; value: number }[] = []
+      const totalMonths = years * 12
+      for (let m = 0; m <= Math.min(totalMonths, 60); m++) {
+        const d = new Date(purchaseDate)
+        d.setMonth(d.getMonth() + m)
+        if (d > now && m > 0) break
+        const elapsed = Math.min(m * 30.44, totalDays)
+        const depreciated = totalDepreciation.mul(elapsed).div(totalDays)
+        const value = purchasePrice.minus(depreciated).toNumber()
+        points.push({
+          date: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`,
+          value: Math.max(Math.round(value), Math.round(residualValue.toNumber())),
+        })
+      }
+
+      return {
+        id: asset.id,
+        name: asset.name,
+        icon: asset.icon_emoji,
+        category: asset.category,
+        purchasePrice: purchasePrice.toNumber(),
+        currentValue: new Decimal(asset.current_value).toNumber(),
+        daysOwned,
+        dailyCost: dailyCost.toNumber(),
+        points,
+      }
+    })
+
+    // Top 5 by daily cost
+    return assetsWithCost.sort((a, b) => b.dailyCost - a.dailyCost).slice(0, 5)
+  })
+
   // ---- Getters by ID ----
   function getAccountById(id: number): Account | undefined {
     return state.accounts.find(a => a.id === id)
@@ -234,6 +434,11 @@ export function useFinance() {
     categoryMonthlySpending,
     investmentPerformance,
     monthlyTrend,
+    netWorthTrend,
+    assetComposition,
+    cashFlowData,
+    monthlyComparison,
+    physicalAssetsDepreciation,
     getAccountById,
     getCategoryById,
     addTransaction,
