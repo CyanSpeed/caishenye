@@ -130,57 +130,59 @@ const themeOverrides = computed(() => {
   if (isDark.value) {
     return {
       common: {
-        primaryColor: '#4C9AFF',
-        primaryColorHover: '#6CB0FF',
+        primaryColor: '#60A5FA',
+        primaryColorHover: '#93C5FD',
         bodyColor: '#0D1117',
-        cardColor: 'rgba(255,255,255,0.03)',
+        cardColor: 'rgba(255,255,255,0.05)',
         modalColor: '#161B22',
         popoverColor: '#161B22',
         borderColor: 'rgba(255,255,255,0.08)',
       },
       Layout: {
         siderColor: '#161B22',
-        siderBorderColor: 'rgba(255,255,255,0.06)',
+        siderBorderColor: 'transparent',
       },
       Menu: {
         itemTextColorInverted: '#8B949E',
         itemTextColorHoverInverted: '#E6EDF3',
-        itemTextColorActiveInverted: '#4C9AFF',
-        itemTextColorChildActiveInverted: '#4C9AFF',
-        itemColorActiveInverted: 'rgba(76,154,255,0.10)',
-        itemColorHoverInverted: 'rgba(255,255,255,0.04)',
+        itemTextColorActiveInverted: '#60A5FA',
+        itemTextColorChildActiveInverted: '#60A5FA',
+        itemColorActiveInverted: 'rgba(96,165,250,0.15)',
+        itemColorHoverInverted: 'rgba(255,255,255,0.05)',
         itemIconColorInverted: '#8B949E',
         itemIconColorHoverInverted: '#E6EDF3',
-        itemIconColorActiveInverted: '#4C9AFF',
-        arrowColorChildActiveInverted: '#4C9AFF',
+        itemIconColorActiveInverted: '#60A5FA',
+        arrowColorChildActiveInverted: '#60A5FA',
+        borderRadius: '12px',
       },
     }
   }
   return {
     common: {
-      primaryColor: '#4C9AFF',
-      primaryColorHover: '#3B8AE8',
+      primaryColor: '#60A5FA',
+      primaryColorHover: '#3B82F6',
       bodyColor: '#F0F2F5',
       cardColor: '#FFFFFF',
       modalColor: '#FFFFFF',
       popoverColor: '#FFFFFF',
-      borderColor: '#D0D7DE',
+      borderColor: 'transparent',
     },
     Layout: {
       siderColor: '#FFFFFF',
-      siderBorderColor: '#D0D7DE',
+      siderBorderColor: 'transparent',
     },
     Menu: {
-      itemTextColorInverted: '#57606A',
-      itemTextColorHoverInverted: '#1F2328',
-      itemTextColorActiveInverted: '#4C9AFF',
-      itemTextColorChildActiveInverted: '#4C9AFF',
-      itemColorActiveInverted: 'rgba(76,154,255,0.08)',
+      itemTextColorInverted: '#6B7280',
+      itemTextColorHoverInverted: '#1F2937',
+      itemTextColorActiveInverted: '#3B82F6',
+      itemTextColorChildActiveInverted: '#3B82F6',
+      itemColorActiveInverted: 'rgba(59,130,246,0.1)',
       itemColorHoverInverted: 'rgba(0,0,0,0.04)',
-      itemIconColorInverted: '#57606A',
-      itemIconColorHoverInverted: '#1F2328',
-      itemIconColorActiveInverted: '#4C9AFF',
-      arrowColorChildActiveInverted: '#4C9AFF',
+      itemIconColorInverted: '#6B7280',
+      itemIconColorHoverInverted: '#1F2937',
+      itemIconColorActiveInverted: '#3B82F6',
+      arrowColorChildActiveInverted: '#3B82F6',
+      borderRadius: '12px',
     },
   }
 })
@@ -195,35 +197,45 @@ watchEffect(() => {
 /* ===== CSS Variables ===== */
 html {
   --bg-body: #F0F2F5;
-  --bg-card: rgba(255, 255, 255, 0.78);
-  --bg-card-hover: rgba(255, 255, 255, 0.95);
-  --border-card: rgba(0, 0, 0, 0.06);
-  --border-card-hover: rgba(0, 0, 0, 0.12);
+  --bg-card: #FFFFFF;
+  --bg-card-hover: #FFFFFF;
+  --border-card: transparent;
+  --border-card-hover: transparent;
   --border-subtle: rgba(0, 0, 0, 0.04);
-  --text-primary: #1F2328;
-  --text-secondary: #656D76;
-  --text-muted: #8B949E;
-  --shadow-card: 0 1px 3px rgba(0,0,0,0.04);
-  --shadow-card-hover: 0 6px 28px rgba(0,0,0,0.08);
+  --text-primary: #1F2937;
+  --text-secondary: #6B7280;
+  --text-muted: #9CA3AF;
+  --shadow-card: 0 4px 20px rgba(0, 0, 0, 0.03);
+  --shadow-card-hover: 0 8px 30px rgba(0, 0, 0, 0.06);
   --scrollbar-thumb: rgba(0,0,0,0.12);
   --scrollbar-thumb-hover: rgba(0,0,0,0.20);
-  --footer-text: #57606A;
+  --footer-text: #6B7280;
+  --accent-green: #10B981;
+  --accent-red: #F87171;
+  --accent-blue: #60A5FA;
+  --accent-purple: #A78BFA;
+  --accent-yellow: #FBBF24;
 }
 html.theme-dark {
   --bg-body: #0D1117;
-  --bg-card: rgba(255, 255, 255, 0.03);
-  --bg-card-hover: rgba(255, 255, 255, 0.05);
-  --border-card: rgba(255, 255, 255, 0.06);
-  --border-card-hover: rgba(255, 255, 255, 0.12);
-  --border-subtle: rgba(255, 255, 255, 0.04);
+  --bg-card: rgba(255, 255, 255, 0.05);
+  --bg-card-hover: rgba(255, 255, 255, 0.08);
+  --border-card: transparent;
+  --border-card-hover: transparent;
+  --border-subtle: rgba(255, 255, 255, 0.06);
   --text-primary: #E6EDF3;
   --text-secondary: #8B949E;
   --text-muted: #6E7681;
-  --shadow-card: none;
-  --shadow-card-hover: 0 4px 32px rgba(0,0,0,0.3);
+  --shadow-card: 0 4px 20px rgba(0, 0, 0, 0.2);
+  --shadow-card-hover: 0 8px 30px rgba(0, 0, 0, 0.3);
   --scrollbar-thumb: rgba(255,255,255,0.08);
   --scrollbar-thumb-hover: rgba(255,255,255,0.15);
   --footer-text: #8B949E;
+  --accent-green: #34D399;
+  --accent-red: #F87171;
+  --accent-blue: #60A5FA;
+  --accent-purple: #A78BFA;
+  --accent-yellow: #FBBF24;
 }
 
 html, body, #app {
@@ -231,7 +243,7 @@ html, body, #app {
   padding: 0;
   height: 100%;
   background: var(--bg-body);
-  font-family: -apple-system, 'PingFang SC', 'Microsoft YaHei', 'Noto Sans SC', sans-serif;
+  font-family: 'Inter', -apple-system, 'PingFang SC', 'Microsoft YaHei', 'Noto Sans SC', sans-serif;
   font-size: 15px;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
@@ -252,17 +264,14 @@ html, body, #app {
 /* Shared glass card */
 .glass-card {
   background: var(--bg-card);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  border: 1px solid var(--border-card);
-  border-radius: 16px;
-  transition: border-color 0.3s ease, box-shadow 0.3s ease, background 0.3s ease;
+  border: none;
+  border-radius: 20px;
+  transition: all 0.3s ease;
   box-shadow: var(--shadow-card);
 }
 .glass-card:hover {
-  border-color: var(--border-card-hover);
   box-shadow: var(--shadow-card-hover);
-  background: var(--bg-card-hover);
+  transform: translateY(-2px);
 }
 </style>
 
@@ -270,33 +279,33 @@ html, body, #app {
 .app-layout { height: 100vh; }
 
 .sidebar-brand {
-  height: 56px;
+  height: 64px;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 10px;
-  border-bottom: 1px solid var(--border-card);
-  padding: 0 16px;
+  gap: 12px;
+  border-bottom: 1px solid var(--border-subtle);
+  padding: 0 20px;
   flex-shrink: 0;
 }
 .brand-icon {
-  width: 34px; height: 34px;
-  border-radius: 9px;
-  background: linear-gradient(135deg, #4C9AFF, #6554C0);
+  width: 38px; height: 38px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #60A5FA, #A78BFA);
   display: flex; align-items: center; justify-content: center;
-  font-size: 18px; font-weight: 700; color: #fff;
+  font-size: 20px; font-weight: 700; color: #fff;
   flex-shrink: 0;
 }
 .brand-text {
-  font-size: 18px; font-weight: 700;
+  font-size: 20px; font-weight: 700;
   color: var(--text-primary);
   white-space: nowrap; letter-spacing: 1px;
 }
 .sidebar-spacer { flex: 1; }
 .sidebar-footer {
-  padding: 10px 12px;
-  display: flex; justify-content: center; gap: 4px;
-  border-top: 1px solid var(--border-card);
+  padding: 16px;
+  display: flex; justify-content: center; gap: 8px;
+  border-top: 1px solid var(--border-subtle);
   color: var(--footer-text);
   flex-shrink: 0;
   margin-top: auto;
@@ -305,6 +314,7 @@ html, body, #app {
 .main-content {
   background: var(--bg-body);
   overflow-y: auto;
+  padding: 20px;
 }
 
 .page-fade-enter-active, .page-fade-leave-active {

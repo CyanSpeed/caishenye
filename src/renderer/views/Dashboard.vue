@@ -130,7 +130,7 @@ let liabilityChart: echarts.ECharts | null = null
 let trendChart: echarts.ECharts | null = null
 const observers: ResizeObserver[] = []
 
-const CHART_COLORS = { cash: '#4C9AFF', bank: '#36B37E', investment: '#6554C0', loan: '#FF8B64', credit: '#FF5630' }
+const CHART_COLORS = { cash: '#60A5FA', bank: '#34D399', investment: '#A78BFA', loan: '#FBBF24', credit: '#F87171' }
 
 function isDarkMode() {
   return document.documentElement.classList.contains('theme-dark')
@@ -180,19 +180,27 @@ function initAssetChart() {
         formatter: (p: any) => `${p.name}: ¥${p.value.toLocaleString()}`,
         ...tt,
       },
+      legend: {
+        orient: 'horizontal',
+        bottom: 0,
+        textStyle: { color: textColor, fontSize: 12 },
+      },
       series: [{
         type: 'pie',
-        radius: ['50%', '75%'],
-        center: ['50%', '52%'],
-        itemStyle: { borderRadius: 6, borderColor: 'transparent', borderWidth: 0 },
+        radius: ['45%', '75%'],
+        center: ['50%', '45%'],
+        itemStyle: { borderRadius: 8, borderColor: '#fff', borderWidth: 3 },
         label: {
-          show: true,
-          position: 'outside',
-          formatter: '{b}\n{d}%',
-          color: textColor,
-          fontSize: 12,
+          show: false,
         },
-        emphasis: { scaleSize: 4 },
+        emphasis: {
+          scaleSize: 6,
+          label: {
+            show: true,
+            fontSize: 14,
+            fontWeight: 'bold',
+          },
+        },
         data: assetAllocation.value.map(d => ({
           name: d.name, value: d.value,
           itemStyle: { color: CHART_COLORS[d.sub_type] },
@@ -213,20 +221,28 @@ function initLiabilityChart() {
         formatter: (p: any) => `${p.name}: ¥${p.value.toLocaleString()}`,
         ...tt,
       },
+      legend: {
+        orient: 'horizontal',
+        bottom: 0,
+        textStyle: { color: textColor, fontSize: 12 },
+      },
       series: [{
         type: 'pie',
-        radius: ['50%', '75%'],
-        center: ['50%', '52%'],
+        radius: ['45%', '75%'],
+        center: ['50%', '45%'],
         roseType: 'area',
-        itemStyle: { borderRadius: 6, borderColor: 'transparent', borderWidth: 0 },
+        itemStyle: { borderRadius: 8, borderColor: '#fff', borderWidth: 3 },
         label: {
-          show: true,
-          position: 'outside',
-          formatter: '{b}\n¥{c}',
-          color: textColor,
-          fontSize: 12,
+          show: false,
         },
-        emphasis: { scaleSize: 4 },
+        emphasis: {
+          scaleSize: 6,
+          label: {
+            show: true,
+            fontSize: 14,
+            fontWeight: 'bold',
+          },
+        },
         data: liabilityOverview.value.map(d => ({
           name: d.name, value: d.value,
           itemStyle: { color: CHART_COLORS[d.sub_type] },
@@ -264,16 +280,36 @@ function initTrendChart() {
       },
       series: [
         {
-          name: '收入', type: 'line', smooth: true, symbol: 'circle', symbolSize: 6,
+          name: '收入', type: 'line', smooth: true, symbol: 'circle', symbolSize: 8,
           data: data.map(d => d.income),
-          lineStyle: { color: '#36B37E', width: 2 },
-          itemStyle: { color: '#36B37E' },
+          lineStyle: { color: '#10B981', width: 3 },
+          itemStyle: { color: '#10B981', borderColor: '#fff', borderWidth: 2 },
+          areaStyle: {
+            color: {
+              type: 'linear',
+              x: 0, y: 0, x2: 0, y2: 1,
+              colorStops: [
+                { offset: 0, color: 'rgba(16, 185, 129, 0.3)' },
+                { offset: 1, color: 'rgba(16, 185, 129, 0.02)' },
+              ],
+            },
+          },
         },
         {
-          name: '支出', type: 'line', smooth: true, symbol: 'circle', symbolSize: 6,
+          name: '支出', type: 'line', smooth: true, symbol: 'circle', symbolSize: 8,
           data: data.map(d => d.expense),
-          lineStyle: { color: '#FF5630', width: 2 },
-          itemStyle: { color: '#FF5630' },
+          lineStyle: { color: '#F87171', width: 3 },
+          itemStyle: { color: '#F87171', borderColor: '#fff', borderWidth: 2 },
+          areaStyle: {
+            color: {
+              type: 'linear',
+              x: 0, y: 0, x2: 0, y2: 1,
+              colorStops: [
+                { offset: 0, color: 'rgba(248, 113, 113, 0.3)' },
+                { offset: 1, color: 'rgba(248, 113, 113, 0.02)' },
+              ],
+            },
+          },
         },
       ],
     })
@@ -306,47 +342,108 @@ onUnmounted(() => {
 
 <style scoped>
 .dashboard {
-  padding: 28px 32px;
+  padding: 24px;
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 24px;
   max-width: 1400px;
 }
 
-.glass-card { padding: 20px 24px; }
+.glass-card { padding: 24px 28px; }
 
 /* Stat Row */
-.stat-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
-.stat-card { display: flex; flex-direction: column; gap: 8px; }
-.stat-label { font-size: 14px; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.5px; }
-.stat-value { font-size: 34px; font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: -0.5px; }
-.stat-sub { font-size: 13px; color: var(--text-muted); }
+.stat-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; }
+.stat-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  position: relative;
+  overflow: hidden;
+}
+.stat-card::before {
+  content: '';
+  position: absolute;
+  top: -20px;
+  right: -20px;
+  width: 100px;
+  height: 100px;
+  border-radius: 50%;
+  opacity: 0.1;
+  pointer-events: none;
+}
+.stat-card:nth-child(1)::before { background: linear-gradient(135deg, #60A5FA, #A78BFA); }
+.stat-card:nth-child(2)::before { background: linear-gradient(135deg, #10B981, #34D399); }
+.stat-card:nth-child(3)::before { background: linear-gradient(135deg, #F87171, #FBBF24); }
+.stat-label {
+  font-size: 13px;
+  color: #9CA3AF;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  font-weight: 500;
+}
+.stat-value {
+  font-size: 32px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.5px;
+  color: #1F2937;
+}
+.stat-sub {
+  font-size: 13px;
+  color: #9CA3AF;
+}
 
-.text-green { color: #36B37E; }
-.text-red { color: #FF5630; }
-.text-blue { color: #4C9AFF; }
+.text-green { color: #10B981; }
+.text-red { color: #F87171; }
+.text-blue { color: #60A5FA; }
 
 /* Charts */
-.charts-row { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
-.bottom-row { display: grid; grid-template-columns: 1.5fr 1fr; gap: 20px; }
-.chart-card { display: flex; flex-direction: column; gap: 12px; }
-.card-title { font-size: 16px; font-weight: 600; color: var(--text-primary); }
-.chart-box { width: 100%; height: 260px; min-height: 200px; }
+.charts-row { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+.bottom-row { display: grid; grid-template-columns: 1.5fr 1fr; gap: 24px; }
+.chart-card {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.card-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: #1F2937;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.chart-box { width: 100%; height: 280px; min-height: 200px; }
 
 /* Recent */
-.recent-card { display: flex; flex-direction: column; gap: 12px; }
-.recent-list { display: flex; flex-direction: column; }
-.recent-item { display: flex; align-items: center; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--border-subtle); }
+.recent-card { display: flex; flex-direction: column; gap: 16px; }
+.recent-list { display: flex; flex-direction: column; gap: 4px; }
+.recent-item {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 14px 0;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.04);
+  transition: background-color 0.2s ease;
+}
 .recent-item:last-child { border-bottom: none; padding-bottom: 0; }
+.recent-item:hover { background-color: rgba(0, 0, 0, 0.02); border-radius: 12px; }
 .recent-icon {
-  width: 32px; height: 32px; border-radius: 8px;
+  width: 40px; height: 40px; border-radius: 12px;
   display: flex; align-items: center; justify-content: center; flex-shrink: 0;
 }
-.icon--income { background: rgba(54, 179, 126, 0.15); color: #36B37E; }
-.icon--expense { background: rgba(255, 86, 48, 0.15); color: #FF5630; }
-.icon--transfer { background: rgba(76, 154, 255, 0.15); color: #4C9AFF; }
+.icon--income { background: rgba(16, 185, 129, 0.1); color: #10B981; }
+.icon--expense { background: rgba(248, 113, 113, 0.1); color: #F87171; }
+.icon--transfer { background: rgba(96, 165, 250, 0.1); color: #60A5FA; }
 .recent-info { flex: 1; min-width: 0; }
-.recent-desc { font-size: 14px; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.recent-meta { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+.recent-desc {
+  font-size: 14px;
+  color: #1F2937;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 500;
+}
+.recent-meta { font-size: 12px; color: #9CA3AF; margin-top: 4px; }
 .recent-amount { font-size: 14px; font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
 </style>
