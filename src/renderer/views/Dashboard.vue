@@ -722,17 +722,18 @@ onUnmounted(() => {
 
 <style scoped>
 .dashboard {
-  padding: 24px;
+  padding: clamp(16px, 2vw, 32px);
   display: flex;
   flex-direction: column;
-  gap: 24px;
-  max-width: 1400px;
+  gap: clamp(16px, 1.5vw, 28px);
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .glass-card { padding: 24px 28px; }
 
 /* Stat Row */
-.stat-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; }
+.stat-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: clamp(16px, 1.5vw, 28px); }
 .stat-card {
   display: flex;
   flex-direction: column;
@@ -777,8 +778,8 @@ onUnmounted(() => {
 .text-blue { color: #60A5FA; }
 
 /* Charts */
-.charts-row { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
-.bottom-row { display: grid; grid-template-columns: 1.5fr 1fr; gap: 24px; }
+.charts-row { display: grid; grid-template-columns: 1fr 1fr; gap: clamp(16px, 1.5vw, 28px); }
+.bottom-row { display: grid; grid-template-columns: 1.5fr 1fr; gap: clamp(16px, 1.5vw, 28px); }
 .chart-card {
   display: flex;
   flex-direction: column;
@@ -822,8 +823,8 @@ onUnmounted(() => {
   background: var(--bg-card);
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
 }
-.chart-box { width: 100%; height: 280px; min-height: 200px; }
-.chart-box--tall { height: 320px; min-height: 260px; }
+.chart-box { width: 100%; height: clamp(280px, 24vh, 440px); min-height: 200px; }
+.chart-box--tall { height: clamp(320px, 28vh, 500px); min-height: 260px; }
 
 /* Recent */
 .recent-card { display: flex; flex-direction: column; gap: 16px; }

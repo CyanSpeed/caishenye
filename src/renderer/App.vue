@@ -314,7 +314,7 @@ html, body, #app {
 .main-content {
   background: var(--bg-body);
   overflow-y: auto;
-  padding: 20px;
+  padding: clamp(12px, 1.5vw, 24px);
 }
 
 .page-fade-enter-active, .page-fade-leave-active {

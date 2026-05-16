@@ -185,12 +185,12 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
-.invest-page { padding: 28px 32px; max-width: 1400px; }
+.invest-page { padding: clamp(16px, 2vw, 32px); width: 100%; box-sizing: border-box; }
 .page-header { margin-bottom: 24px; }
 .page-title { margin: 0; font-size: 24px; font-weight: 700; color: var(--text-primary); }
 
 .glass-card { padding: 20px 24px; }
-.invest-summary { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 24px; }
+.invest-summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: clamp(12px, 1.2vw, 20px); margin-bottom: 24px; }
 .invest-stat { display: flex; flex-direction: column; gap: 6px; }
 .invest-stat-label { font-size: 12px; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.5px; }
 .invest-stat-value { font-size: 24px; font-weight: 700; font-variant-numeric: tabular-nums; color: var(--text-primary); }
@@ -200,7 +200,7 @@ onUnmounted(() => {
 .detail-header-card { display: flex; flex-direction: column; gap: 16px; }
 .detail-account-name { font-size: 16px; font-weight: 600; color: var(--text-primary); display: flex; align-items: center; gap: 8px; }
 .dot { width: 8px; height: 8px; border-radius: 50%; }
-.detail-metrics { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+.detail-metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: clamp(8px, 1vw, 16px); }
 .metric { display: flex; flex-direction: column; gap: 4px; }
 .metric-label { font-size: 12px; color: var(--text-secondary); }
 .metric-value { font-size: 18px; font-weight: 700; font-variant-numeric: tabular-nums; color: var(--text-primary); }
@@ -208,7 +208,7 @@ onUnmounted(() => {
 
 .chart-card { display: flex; flex-direction: column; gap: 12px; }
 .card-title { font-size: 15px; font-weight: 600; color: var(--text-primary); }
-.chart-container { width: 100%; height: 280px; min-height: 200px; }
+.chart-container { width: 100%; height: clamp(280px, 24vh, 440px); min-height: 200px; }
 .snapshot-table-card { display: flex; flex-direction: column; gap: 12px; }
 
 .text-green { color: #36B37E; }

@@ -228,10 +228,10 @@ async function handleSubmit() {
 </script>
 
 <style scoped>
-.tx-page { padding: 28px 32px; max-width: 1400px; }
+.tx-page { padding: clamp(16px, 2vw, 32px); width: 100%; box-sizing: border-box; }
 .page-header { margin-bottom: 24px; }
 .page-title { margin: 0; font-size: 24px; font-weight: 700; color: var(--text-primary); }
-.tx-layout { display: grid; grid-template-columns: 380px 1fr; gap: 20px; align-items: start; }
+.tx-layout { display: grid; grid-template-columns: clamp(320px, 22vw, 420px) 1fr; gap: clamp(16px, 1.5vw, 24px); align-items: start; }
 
 .glass-card { padding: 20px 24px; }
 .form-card { position: sticky; top: 28px; }

@@ -148,7 +148,7 @@ function investmentReturn(accountId: number): number | null {
 </script>
 
 <style scoped>
-.accounts-page { padding: 28px 32px; max-width: 1400px; }
+.accounts-page { padding: clamp(16px, 2vw, 32px); width: 100%; box-sizing: border-box; }
 .page-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 24px; flex-wrap: wrap; gap: 16px; }
 .page-title { margin: 0; font-size: 24px; font-weight: 700; color: var(--text-primary); }
 
@@ -183,7 +183,7 @@ function investmentReturn(accountId: number): number | null {
 .card-grid-leave-to { opacity: 0; transform: scale(0.92); }
 .card-grid-move { transition: transform 0.3s ease; }
 
-.account-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 16px; }
+.account-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: clamp(12px, 1vw, 18px); }
 .glass-card.account-card { padding: 16px 20px; cursor: pointer; transition: all 0.25s ease; }
 .glass-card.account-card:hover { transform: translateY(-2px); }
 .card-top { display: flex; align-items: center; gap: 12px; }

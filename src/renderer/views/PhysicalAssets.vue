@@ -644,7 +644,7 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
-.pa-page { padding: 28px 32px; max-width: 1400px; }
+.pa-page { padding: clamp(16px, 2vw, 32px); width: 100%; box-sizing: border-box; }
 
 .page-header {
   display: flex; justify-content: space-between; align-items: center;
@@ -653,7 +653,7 @@ onUnmounted(() => {
 .page-title { margin: 0; font-size: 24px; font-weight: 700; color: var(--text-primary); }
 
 /* Summary */
-.summary-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 20px; }
+.summary-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: clamp(12px, 1.2vw, 20px); margin-bottom: 20px; }
 .summary-card { padding: 18px 22px; display: flex; flex-direction: column; gap: 6px; }
 .summary-label { font-size: 12px; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.5px; }
 .summary-value { font-size: 28px; font-weight: 700; font-variant-numeric: tabular-nums; color: var(--text-primary); }
@@ -673,7 +673,7 @@ onUnmounted(() => {
 .tab-btn.active .tab-count { background: rgba(76,154,255,0.2); color: #4C9AFF; }
 
 /* Asset Grid */
-.asset-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 14px; }
+.asset-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: clamp(12px, 1vw, 18px); }
 .glass-card.asset-card { padding: 16px 20px; cursor: pointer; transition: all 0.25s ease; }
 .glass-card.asset-card:hover { transform: translateY(-2px); }
 
@@ -715,7 +715,7 @@ onUnmounted(() => {
 
 .detail-chart { margin-top: 14px; }
 .chart-title { font-size: 13px; font-weight: 600; color: var(--text-secondary); margin-bottom: 8px; }
-.chart-box { width: 100%; height: 220px; min-height: 180px; }
+.chart-box { width: 100%; height: clamp(200px, 18vh, 320px); min-height: 180px; }
 
 /* Colors */
 .text-green { color: #36B37E; }
@@ -735,7 +735,7 @@ onUnmounted(() => {
 }
 .time-btn:hover { color: var(--text-primary); }
 .time-btn.active { background: var(--bg-card, #FFFFFF); color: var(--text-primary); box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
-.overview-chart-box { width: 100%; height: 340px; }
+.overview-chart-box { width: 100%; height: clamp(300px, 28vh, 480px); }
 
 /* Title Controls & Asset Selector */
 .title-controls { display: flex; align-items: center; gap: 10px; }
