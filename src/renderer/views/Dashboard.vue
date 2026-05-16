@@ -755,11 +755,10 @@ onUnmounted(() => {
 .stat-card:nth-child(2)::before { background: linear-gradient(135deg, #10B981, #34D399); }
 .stat-card:nth-child(3)::before { background: linear-gradient(135deg, #F87171, #FBBF24); }
 .stat-label {
-  font-size: 13px;
-  color: #9CA3AF;
-  text-transform: uppercase;
-  letter-spacing: 1px;
-  font-weight: 500;
+  font-size: 16px;
+  color: #1F2937;
+  font-weight: 600;
+  letter-spacing: 0;
 }
 .stat-value {
   font-size: 32px;

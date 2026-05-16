@@ -36,14 +36,46 @@
     <div class="glass-card overview-chart-card">
       <div class="card-title-row">
         <span class="card-title">实物资产折旧分析</span>
-        <div class="time-switcher">
-          <button
-            v-for="opt in overviewTimeOptions"
-            :key="opt.value"
-            class="time-btn"
-            :class="{ active: selectedOverviewRange === opt.value }"
-            @click="setOverviewRange(opt.value)"
-          >{{ opt.label }}</button>
+        <div class="title-controls">
+          <div class="time-switcher">
+            <button
+              v-for="opt in overviewTimeOptions"
+              :key="opt.value"
+              class="time-btn"
+              :class="{ active: selectedOverviewRange === opt.value }"
+              @click="setOverviewRange(opt.value)"
+            >{{ opt.label }}</button>
+          </div>
+          <div class="asset-selector" ref="selectorRef">
+            <button class="selector-btn" @click="showAssetSelector = !showAssetSelector">
+              <span>选择资产 ({{ displayAssets.length }})</span>
+              <span class="selector-arrow">{{ showAssetSelector ? '▲' : '▼' }}</span>
+            </button>
+            <Transition name="fade">
+              <div v-if="showAssetSelector" class="selector-popover" @click.stop>
+                <div class="selector-header">
+                  <span class="selector-title">选择要展示的资产</span>
+                </div>
+                <div class="selector-list">
+                  <div
+                    v-for="asset in allPhysicalAssetsDepreciation"
+                    :key="asset.id"
+                    class="selector-item"
+                    :class="{ selected: displayAssets.some(a => a.id === asset.id) }"
+                    @click="toggleAsset(asset.id)"
+                  >
+                    <div class="selector-item-left">
+                      <span class="selector-emoji">{{ asset.icon }}</span>
+                      <span class="selector-name">{{ asset.name }}</span>
+                    </div>
+                    <div class="selector-check" :class="{ checked: displayAssets.some(a => a.id === asset.id) }">
+                      <span v-if="displayAssets.some(a => a.id === asset.id)">✓</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </Transition>
+          </div>
         </div>
       </div>
       <div ref="overviewChartRef" class="overview-chart-box"></div>
@@ -195,7 +227,7 @@ import { useFormatter } from '../composables/useFormatter'
 import type { SelectOption } from 'naive-ui'
 
 const { currencyPlain } = useFormatter()
-const { state: financeState, addPhysicalAsset: createPhysicalAsset, physicalAssetsDepreciation } = useFinance()
+const { state: financeState, addPhysicalAsset: createPhysicalAsset, physicalAssetsDepreciation, allPhysicalAssetsDepreciation } = useFinance()
 const message = useMessage()
 
 // ---- Reactive state ----
@@ -223,6 +255,7 @@ const categoryOptions: SelectOption[] = [
   { label: '数码', value: '数码' },
   { label: '汽车', value: '汽车' },
   { label: '奢侈品', value: '奢侈品' },
+  { label: '房产', value: '房产' },
 ]
 
 // ---- Tabs ----
@@ -237,6 +270,7 @@ const tabs = computed(() => {
     { key: '数码' as const, label: '数码', emoji: '📱', count: counts['数码'] || 0 },
     { key: '汽车' as const, label: '汽车', emoji: '🚗', count: counts['汽车'] || 0 },
     { key: '奢侈品' as const, label: '奢侈品', emoji: '💎', count: counts['奢侈品'] || 0 },
+    { key: '房产' as const, label: '房产', emoji: '🏠', count: counts['房产'] || 0 },
   ]
 })
 
@@ -357,13 +391,43 @@ function setOverviewRange(range: string) {
   initOverviewDepreciationChart()
 }
 
+// ---- Asset Selector ----
+const showAssetSelector = ref(false)
+const selectorRef = ref<HTMLElement | null>(null)
+const selectedAssetIds = ref<number[]>([])
+const selectionMade = ref(false)
+
+const displayAssets = computed(() => {
+  if (!selectionMade.value) return physicalAssetsDepreciation.value
+  const all = allPhysicalAssetsDepreciation.value
+  const selected = all.filter(a => selectedAssetIds.value.includes(a.id))
+  return selected.length > 0 ? selected : all.slice(0, 5)
+})
+
+function toggleAsset(id: number) {
+  const idx = selectedAssetIds.value.indexOf(id)
+  if (idx >= 0) {
+    selectedAssetIds.value.splice(idx, 1)
+  } else {
+    selectedAssetIds.value.push(id)
+  }
+  selectionMade.value = true
+  initOverviewDepreciationChart()
+}
+
+function handleClickOutside(e: MouseEvent) {
+  if (selectorRef.value && !selectorRef.value.contains(e.target as Node)) {
+    showAssetSelector.value = false
+  }
+}
+
 function initOverviewDepreciationChart() {
   if (!overviewChartRef.value || overviewChartRef.value.clientWidth === 0) return
   const existing = echarts.getInstanceByDom(overviewChartRef.value)
   if (existing) existing.dispose()
 
   overviewChart = echarts.init(overviewChartRef.value, isDark() ? 'dark' : undefined)
-  const assets = physicalAssetsDepreciation.value
+  const assets = displayAssets.value
   const textColor = isDark() ? '#8B949E' : '#656D76'
   const lineColor = isDark() ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)'
   const splitColor = isDark() ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.04)'
@@ -447,7 +511,7 @@ function initOverviewDepreciationChart() {
 }
 
 const DEPRECIATION_YEARS: Record<string, number> = {
-  '家电': 5, '数码': 3, '汽车': 10, '奢侈品': 20,
+  '家电': 5, '数码': 3, '汽车': 10, '奢侈品': 20, '房产': 40,
 }
 
 function initDepreciationChart(item: PhysicalAsset) {
@@ -568,9 +632,11 @@ function initAllCharts() {
 
 onMounted(() => {
   requestAnimationFrame(() => setTimeout(initAllCharts, 200))
+  document.addEventListener('click', handleClickOutside)
 })
 
 onUnmounted(() => {
+  document.removeEventListener('click', handleClickOutside)
   observers.forEach(o => o.disconnect())
   Object.values(charts).forEach(c => c.dispose())
   overviewChart?.dispose()
@@ -621,6 +687,7 @@ onUnmounted(() => {
 .cat--数码 { background: rgba(101,84,192,0.1); color: #6554C0; }
 .cat--汽车 { background: rgba(54,179,126,0.1); color: #36B37E; }
 .cat--奢侈品 { background: rgba(255,139,100,0.1); color: #FF8B64; }
+.cat--房产 { background: rgba(251,146,60,0.1); color: #FB923C; }
 
 .status-dot { font-size: 11px; display: flex; align-items: center; gap: 4px; }
 .status-dot::before { content: ''; width: 6px; height: 6px; border-radius: 50%; }
@@ -669,6 +736,48 @@ onUnmounted(() => {
 .time-btn:hover { color: var(--text-primary); }
 .time-btn.active { background: var(--bg-card, #FFFFFF); color: var(--text-primary); box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
 .overview-chart-box { width: 100%; height: 340px; }
+
+/* Title Controls & Asset Selector */
+.title-controls { display: flex; align-items: center; gap: 10px; }
+.asset-selector { position: relative; }
+.selector-btn {
+  display: flex; align-items: center; gap: 6px;
+  padding: 6px 14px; border-radius: 8px; border: 1px solid var(--border-card);
+  background: var(--bg-card); color: var(--text-secondary); font-size: 12px; font-weight: 500;
+  cursor: pointer; transition: all 0.2s ease; white-space: nowrap;
+}
+.selector-btn:hover { border-color: var(--border-card-hover); color: var(--text-primary); }
+.selector-arrow { font-size: 10px; opacity: 0.6; }
+.selector-popover {
+  position: absolute; top: calc(100% + 6px); right: 0; z-index: 100;
+  width: 260px; max-height: 320px;
+  background: var(--bg-card); border: 1px solid var(--border-card);
+  border-radius: 12px; box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+  overflow: hidden; display: flex; flex-direction: column;
+}
+.selector-header { padding: 10px 14px; border-bottom: 1px solid var(--border-subtle); }
+.selector-title { font-size: 12px; font-weight: 600; color: var(--text-secondary); }
+.selector-list { overflow-y: auto; padding: 4px; }
+.selector-item {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 8px 10px; border-radius: 8px; cursor: pointer;
+  transition: background 0.15s ease;
+}
+.selector-item:hover { background: var(--border-subtle); }
+.selector-item.selected { background: rgba(76,154,255,0.06); }
+.selector-item-left { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.selector-emoji { font-size: 18px; flex-shrink: 0; }
+.selector-name { font-size: 13px; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.selector-check {
+  width: 20px; height: 20px; border-radius: 6px; border: 2px solid var(--border-card);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 12px; color: transparent; transition: all 0.15s ease; flex-shrink: 0;
+}
+.selector-check.checked { background: #4C9AFF; border-color: #4C9AFF; color: #fff; }
+
+/* Fade transition */
+.fade-enter-active, .fade-leave-active { transition: opacity 0.15s ease, transform 0.15s ease; }
+.fade-enter-from, .fade-leave-to { opacity: 0; transform: translateY(-4px); }
 
 /* Transitions */
 .expand-enter-active, .expand-leave-active { transition: all 0.3s ease; }

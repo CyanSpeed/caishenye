@@ -36,7 +36,7 @@ export interface InvestmentSnapshot {
   note: string
 }
 
-export type PhysicalAssetCategory = '家电' | '数码' | '汽车' | '奢侈品'
+export type PhysicalAssetCategory = '家电' | '数码' | '汽车' | '奢侈品' | '房产'
 export type PhysicalAssetStatus = '使用中' | '已出售' | '已报废'
 
 export interface PhysicalAsset {

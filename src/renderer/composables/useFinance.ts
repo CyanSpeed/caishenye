@@ -325,7 +325,7 @@ export function useFinance() {
   })
 
   // ---- 5. Physical Assets Depreciation Analysis ----
-  const DEPRECIATION_YEARS: Record<string, number> = { '家电': 5, '数码': 3, '汽车': 10, '奢侈品': 20 }
+  const DEPRECIATION_YEARS: Record<string, number> = { '家电': 5, '数码': 3, '汽车': 10, '奢侈品': 20, '房产': 40 }
   const RESIDUAL_RATE = 0.05
 
   const physicalAssetsDepreciation = computed(() => {
@@ -373,6 +373,47 @@ export function useFinance() {
 
     // Top 5 by daily cost
     return assetsWithCost.sort((a, b) => b.dailyCost - a.dailyCost).slice(0, 5)
+  })
+
+  // ---- All Physical Assets Depreciation (for asset selector) ----
+  const allPhysicalAssetsDepreciation = computed(() => {
+    const activeAssets = state.physicalAssets.filter(a => a.status === '使用中')
+    return activeAssets.map(asset => {
+      const purchasePrice = new Decimal(asset.purchase_price)
+      const purchaseDate = new Date(asset.purchase_date)
+      const now = new Date()
+      const daysOwned = Math.max(1, Math.floor((now.getTime() - purchaseDate.getTime()) / 86400000))
+      const years = DEPRECIATION_YEARS[asset.category] || 5
+      const residualValue = purchasePrice.mul(RESIDUAL_RATE)
+      const totalDepreciation = purchasePrice.minus(residualValue)
+      const dailyCost = totalDepreciation.div(years * 365)
+      const totalDays = years * 365
+      const totalMonths = years * 12
+      const points: { date: string; value: number }[] = []
+      for (let m = 0; m <= Math.min(totalMonths, 60); m++) {
+        const d = new Date(purchaseDate)
+        d.setMonth(d.getMonth() + m)
+        if (d > now && m > 0) break
+        const elapsed = Math.min(m * 30.44, totalDays)
+        const depreciated = totalDepreciation.mul(elapsed).div(totalDays)
+        const value = purchasePrice.minus(depreciated).toNumber()
+        points.push({
+          date: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`,
+          value: Math.max(Math.round(value), Math.round(residualValue.toNumber())),
+        })
+      }
+      return {
+        id: asset.id,
+        name: asset.name,
+        icon: asset.icon_emoji,
+        category: asset.category,
+        purchasePrice: purchasePrice.toNumber(),
+        currentValue: new Decimal(asset.current_value).toNumber(),
+        daysOwned,
+        dailyCost: dailyCost.toNumber(),
+        points,
+      }
+    }).sort((a, b) => b.dailyCost - a.dailyCost)
   })
 
   // ---- Getters by ID ----
@@ -439,6 +480,7 @@ export function useFinance() {
     cashFlowData,
     monthlyComparison,
     physicalAssetsDepreciation,
+    allPhysicalAssetsDepreciation,
     getAccountById,
     getCategoryById,
     addTransaction,
