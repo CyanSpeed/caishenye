@@ -71,6 +71,7 @@ export const IPC_CHANNELS = {
   // Transactions
   GET_TRANSACTIONS: 'get-transactions',
   ADD_TRANSACTION: 'add-transaction',
+  DELETE_TRANSACTION: 'delete-transaction',
   // Categories
   GET_CATEGORIES: 'get-categories',
   // Investment Snapshots

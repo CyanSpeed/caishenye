@@ -44,6 +44,7 @@ function registerIpcHandlers() {
   // Transactions
   ipcMain.handle(IPC_CHANNELS.GET_TRANSACTIONS, () => ops.getAllTransactions())
   ipcMain.handle(IPC_CHANNELS.ADD_TRANSACTION, (_event, tx) => ops.addTransaction(tx))
+  ipcMain.handle(IPC_CHANNELS.DELETE_TRANSACTION, (_event, id) => ops.deleteTransaction(id))
 
   // Investment Snapshots
   ipcMain.handle(IPC_CHANNELS.GET_INVESTMENT_SNAPSHOTS, () => ops.getAllInvestmentSnapshots())

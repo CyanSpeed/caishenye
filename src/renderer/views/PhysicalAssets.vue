@@ -3,7 +3,7 @@
     <!-- Header -->
     <div class="page-header">
       <h2 class="page-title">实物资产</h2>
-      <n-button type="primary" @click="showAddModal = true">
+      <n-button type="primary" @click="editingId = null; showAddModal = true">
         <template #icon><PlusOutlined /></template>
         添加物品
       </n-button>
@@ -114,6 +114,14 @@
               <span class="status-dot" :class="statusClass(item.status)">{{ item.status }}</span>
             </div>
           </div>
+          <div class="card-actions" @click.stop>
+            <n-button text size="small" @click="openEdit(item)" class="action-btn">
+              <template #icon><EditOutlined /></template>
+            </n-button>
+            <n-button text size="small" type="error" @click="handleDelete(item)" class="action-btn">
+              <template #icon><DeleteOutlined /></template>
+            </n-button>
+          </div>
           <div class="asset-stats">
             <div class="stat-primary">
               <span class="stat-num">{{ daysUsed(item) }}</span>
@@ -174,7 +182,7 @@
     </div>
 
     <!-- Add Modal -->
-    <n-modal v-model:show="showAddModal" preset="card" title="添加实物资产" style="width: 520px;">
+    <n-modal v-model:show="showAddModal" preset="card" :title="editingId ? '编辑实物资产' : '添加实物资产'" style="width: 520px;">
       <n-form ref="addFormRef" :model="addForm" label-placement="left" label-width="80">
         <n-form-item label="物品名称" path="name" :rule="{ required: true, message: '请输入名称' }">
           <n-input v-model:value="addForm.name" placeholder="例如：iPhone 16 Pro Max" />
@@ -205,7 +213,7 @@
       <template #footer>
         <n-space justify="end">
           <n-button @click="showAddModal = false">取消</n-button>
-          <n-button type="primary" @click="handleAdd">确认添加</n-button>
+          <n-button type="primary" @click="handleSave">{{ editingId ? '保存' : '确认添加' }}</n-button>
         </n-space>
       </template>
     </n-modal>
@@ -218,23 +226,25 @@ import * as echarts from 'echarts'
 import Decimal from 'decimal.js'
 import {
   NButton, NModal, NForm, NFormItem, NInput, NInputNumber,
-  NSelect, NDatePicker, NSpace, useMessage,
+  NSelect, NDatePicker, NSpace, useMessage, useDialog,
 } from 'naive-ui'
-import { PlusOutlined } from '@vicons/antd'
+import { PlusOutlined, EditOutlined, DeleteOutlined } from '@vicons/antd'
 import { useFinance } from '../composables/useFinance'
 import type { PhysicalAsset, PhysicalAssetCategory, PhysicalAssetStatus } from '@shared/types'
 import { useFormatter } from '../composables/useFormatter'
 import type { SelectOption } from 'naive-ui'
 
 const { currencyPlain } = useFormatter()
-const { state: financeState, addPhysicalAsset: createPhysicalAsset, physicalAssetsDepreciation, allPhysicalAssetsDepreciation } = useFinance()
+const { state: financeState, addPhysicalAsset: createPhysicalAsset, updatePhysicalAsset, deletePhysicalAsset, physicalAssetsDepreciation, allPhysicalAssetsDepreciation } = useFinance()
 const message = useMessage()
+const dialog = useDialog()
 
 // ---- Reactive state ----
 const items = computed(() => financeState.physicalAssets)
 const activeTab = ref<'all' | PhysicalAssetCategory>('all')
 const expandedId = ref<number | null>(null)
 const showAddModal = ref(false)
+const editingId = ref<number | null>(null)
 const addFormRef = ref()
 
 const today = new Date()
@@ -340,28 +350,73 @@ function toggleExpand(id: number) {
   expandedId.value = expandedId.value === id ? null : id
 }
 
-// ---- Add asset ----
-async function handleAdd() {
+// ---- Add / Edit asset ----
+function openEdit(item: PhysicalAsset) {
+  editingId.value = item.id
+  addForm.value = {
+    name: item.name,
+    category: item.category,
+    icon_emoji: item.icon_emoji,
+    purchase_price: Number(item.purchase_price),
+    current_value: Number(item.current_value),
+    purchase_date: item.purchase_date,
+    notes: item.notes || '',
+  }
+  showAddModal.value = true
+}
+
+async function handleSave() {
   addFormRef.value?.validate(async (errors: any) => {
     if (errors) return
     try {
-      await createPhysicalAsset({
-        name: addForm.value.name,
-        category: addForm.value.category,
-        icon_emoji: addForm.value.icon_emoji || '📦',
-        purchase_price: String(addForm.value.purchase_price ?? 0),
-        purchase_date: addForm.value.purchase_date,
-        current_value: String(addForm.value.current_value ?? addForm.value.purchase_price ?? 0),
-        image_url: '',
-        notes: addForm.value.notes,
-        status: '使用中',
-      })
-      message.success('添加成功')
+      if (editingId.value) {
+        await updatePhysicalAsset(editingId.value, {
+          name: addForm.value.name,
+          category: addForm.value.category,
+          icon_emoji: addForm.value.icon_emoji || '📦',
+          purchase_price: String(addForm.value.purchase_price ?? 0),
+          purchase_date: addForm.value.purchase_date,
+          current_value: String(addForm.value.current_value ?? addForm.value.purchase_price ?? 0),
+          notes: addForm.value.notes,
+        })
+        message.success('更新成功')
+      } else {
+        await createPhysicalAsset({
+          name: addForm.value.name,
+          category: addForm.value.category,
+          icon_emoji: addForm.value.icon_emoji || '📦',
+          purchase_price: String(addForm.value.purchase_price ?? 0),
+          purchase_date: addForm.value.purchase_date,
+          current_value: String(addForm.value.current_value ?? addForm.value.purchase_price ?? 0),
+          image_url: '',
+          notes: addForm.value.notes,
+          status: '使用中',
+        })
+        message.success('添加成功')
+      }
       showAddModal.value = false
+      editingId.value = null
       addForm.value = { name: '', category: '数码', icon_emoji: '', purchase_price: null, current_value: null, purchase_date: todayStr, notes: '' }
     } catch {
-      message.error('添加失败')
+      message.error('操作失败')
     }
+  })
+}
+
+function handleDelete(item: PhysicalAsset) {
+  dialog.warning({
+    title: '删除物品',
+    content: `确定要删除「${item.name}」吗？此操作不可撤销。`,
+    positiveText: '删除',
+    negativeText: '取消',
+    onPositiveClick: async () => {
+      try {
+        await deletePhysicalAsset(item.id)
+        message.success('已删除')
+      } catch {
+        message.error('删除失败')
+      }
+    },
   })
 }
 
@@ -678,6 +733,9 @@ onUnmounted(() => {
 .glass-card.asset-card:hover { transform: translateY(-2px); }
 
 .card-top { display: flex; align-items: center; gap: 14px; }
+.card-actions { display: flex; gap: 4px; flex-shrink: 0; }
+.action-btn { opacity: 0.5; transition: opacity 0.2s; }
+.action-btn:hover { opacity: 1; }
 .asset-emoji { font-size: 32px; width: 50px; height: 50px; border-radius: 12px; background: var(--border-subtle); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
 .asset-info { flex: 1; min-width: 0; }
 .asset-name { font-size: 16px; font-weight: 600; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

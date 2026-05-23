@@ -17,6 +17,7 @@ const api = {
   // Transactions
   getTransactions: () => ipcRenderer.invoke(IPC_CHANNELS.GET_TRANSACTIONS),
   addTransaction: (tx: any) => ipcRenderer.invoke(IPC_CHANNELS.ADD_TRANSACTION, tx),
+  deleteTransaction: (id: number) => ipcRenderer.invoke(IPC_CHANNELS.DELETE_TRANSACTION, id),
 
   // Investment Snapshots
   getInvestmentSnapshots: () => ipcRenderer.invoke(IPC_CHANNELS.GET_INVESTMENT_SNAPSHOTS),

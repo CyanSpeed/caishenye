@@ -96,6 +96,47 @@ export function addTransaction(tx: Omit<Transaction, 'id'>): Transaction {
   return insertAndBalance()
 }
 
+export function deleteTransaction(id: number): void {
+  const db = getDatabase()
+
+  const deleteAndReverse = db.transaction(() => {
+    const tx = db.prepare('SELECT * FROM transactions WHERE id = ?').get(id) as Transaction | undefined
+    if (!tx) return
+
+    const amount = new Decimal(tx.amount)
+
+    // Reverse balance changes
+    if (tx.type === 'expense' && tx.from_account_id) {
+      const account = db.prepare('SELECT balance FROM accounts WHERE id = ?').get(tx.from_account_id) as { balance: string } | undefined
+      if (account) {
+        db.prepare('UPDATE accounts SET balance = ? WHERE id = ?').run(new Decimal(account.balance).plus(amount).toFixed(2), tx.from_account_id)
+      }
+    } else if (tx.type === 'income' && tx.to_account_id) {
+      const account = db.prepare('SELECT balance FROM accounts WHERE id = ?').get(tx.to_account_id) as { balance: string } | undefined
+      if (account) {
+        db.prepare('UPDATE accounts SET balance = ? WHERE id = ?').run(new Decimal(account.balance).minus(amount).toFixed(2), tx.to_account_id)
+      }
+    } else if (tx.type === 'transfer') {
+      if (tx.from_account_id) {
+        const from = db.prepare('SELECT balance FROM accounts WHERE id = ?').get(tx.from_account_id) as { balance: string } | undefined
+        if (from) {
+          db.prepare('UPDATE accounts SET balance = ? WHERE id = ?').run(new Decimal(from.balance).plus(amount).toFixed(2), tx.from_account_id)
+        }
+      }
+      if (tx.to_account_id) {
+        const to = db.prepare('SELECT balance FROM accounts WHERE id = ?').get(tx.to_account_id) as { balance: string } | undefined
+        if (to) {
+          db.prepare('UPDATE accounts SET balance = ? WHERE id = ?').run(new Decimal(to.balance).minus(amount).toFixed(2), tx.to_account_id)
+        }
+      }
+    }
+
+    db.prepare('DELETE FROM transactions WHERE id = ?').run(id)
+  })
+
+  deleteAndReverse()
+}
+
 // ===== Investment Snapshots =====
 
 export function getAllInvestmentSnapshots(): InvestmentSnapshot[] {

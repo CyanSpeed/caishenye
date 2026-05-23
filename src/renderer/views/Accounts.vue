@@ -2,19 +2,25 @@
   <div class="accounts-page">
     <div class="page-header">
       <h2 class="page-title">账户管理</h2>
-      <div class="summary-pills">
-        <div class="pill pill--asset">
-          <span class="pill-label">总资产</span>
-          <span class="pill-value">{{ currencyPlain(totalAssets) }}</span>
+      <div class="header-right">
+        <div class="summary-pills">
+          <div class="pill pill--asset">
+            <span class="pill-label">总资产</span>
+            <span class="pill-value">{{ currencyPlain(totalAssets) }}</span>
+          </div>
+          <div class="pill pill--liability">
+            <span class="pill-label">总负债</span>
+            <span class="pill-value">{{ currencyPlain(totalLiabilities) }}</span>
+          </div>
+          <div class="pill" :class="netWorth.isNegative() ? 'pill--liability' : 'pill--asset'">
+            <span class="pill-label">净资产</span>
+            <span class="pill-value">{{ currencyPlain(netWorth) }}</span>
+          </div>
         </div>
-        <div class="pill pill--liability">
-          <span class="pill-label">总负债</span>
-          <span class="pill-value">{{ currencyPlain(totalLiabilities) }}</span>
-        </div>
-        <div class="pill" :class="netWorth.isNegative() ? 'pill--liability' : 'pill--asset'">
-          <span class="pill-label">净资产</span>
-          <span class="pill-value">{{ currencyPlain(netWorth) }}</span>
-        </div>
+        <n-button type="primary" @click="openAdd">
+          <template #icon><PlusOutlined /></template>
+          添加账户
+        </n-button>
       </div>
     </div>
 
@@ -46,6 +52,14 @@
           <div class="account-info">
             <div class="account-name">{{ account.name }}</div>
             <div class="account-type">{{ subTypeLabel(account.sub_type) }}</div>
+          </div>
+          <div class="card-actions" @click.stop>
+            <n-button text size="small" @click="openEdit(account)" class="action-btn">
+              <template #icon><EditOutlined /></template>
+            </n-button>
+            <n-button text size="small" type="error" @click="handleDelete(account)" class="action-btn">
+              <template #icon><DeleteOutlined /></template>
+            </n-button>
           </div>
           <div class="account-balance" :class="account.type === 'asset' ? 'text-green' : 'text-red'">
             {{ account.type === 'liability' ? '-' : '' }}{{ currencyPlain(account.balance) }}
@@ -89,23 +103,63 @@
         </Transition>
       </div>
     </TransitionGroup>
+
+    <!-- Add / Edit Modal -->
+    <n-modal v-model:show="showModal" preset="card" :title="editingId ? '编辑账户' : '添加账户'" style="width: 460px;">
+      <n-form ref="formRef" :model="accountForm" label-placement="left" label-width="70">
+        <n-form-item label="名称" path="name">
+          <n-input v-model:value="accountForm.name" placeholder="账户名称" />
+        </n-form-item>
+        <n-form-item label="类型" path="type">
+          <n-select v-model:value="accountForm.type" :options="typeOptions" />
+        </n-form-item>
+        <n-form-item label="子类型" path="sub_type">
+          <n-select v-model:value="accountForm.sub_type" :options="subTypeOptions" />
+        </n-form-item>
+        <n-form-item label="余额" path="balance">
+          <n-input-number v-model:value="accountForm.balance" :style="{ width: '100%' }">
+            <template #prefix>¥</template>
+          </n-input-number>
+        </n-form-item>
+        <n-form-item label="币种" path="currency">
+          <n-input v-model:value="accountForm.currency" placeholder="CNY" />
+        </n-form-item>
+        <n-form-item label="启用" path="is_active">
+          <n-switch v-model:value="accountForm.is_active" />
+        </n-form-item>
+      </n-form>
+      <template #footer>
+        <n-space justify="end">
+          <n-button @click="showModal = false">取消</n-button>
+          <n-button type="primary" @click="handleSave">{{ editingId ? '保存' : '添加' }}</n-button>
+        </n-space>
+      </template>
+    </n-modal>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, computed } from 'vue'
+import {
+  NButton, NModal, NForm, NFormItem, NInput, NInputNumber,
+  NSelect, NSwitch, NSpace, useMessage, useDialog,
+} from 'naive-ui'
+import type { SelectOption } from 'naive-ui'
 import { useFinance } from '../composables/useFinance'
 import { useFormatter } from '../composables/useFormatter'
 import {
-  BankOutlined, CreditCardOutlined, HomeOutlined,
-  MoneyCollectOutlined, StockOutlined, WalletOutlined,
+  BankOutlined, CreditCardOutlined, HomeOutlined, EditOutlined, DeleteOutlined,
+  MoneyCollectOutlined, StockOutlined, WalletOutlined, PlusOutlined,
 } from '@vicons/antd'
+import type { Account } from '@shared/types'
 
 const {
   assetAccounts, liabilityAccounts, totalAssets, totalLiabilities,
-  netWorth, investmentPerformance,
+  netWorth, investmentPerformance, addAccount, updateAccount, deleteAccount,
 } = useFinance()
 const { currencyPlain } = useFormatter()
+const message = useMessage()
+const dialog = useDialog()
 
 const activeTab = ref<'all' | 'asset' | 'liability'>('all')
 const expandedId = ref<number | null>(null)
@@ -145,12 +199,90 @@ function investmentReturn(accountId: number): number | null {
   if (!perf || perf.costBasis.eq(0)) return null
   return perf.returnRate.toNumber()
 }
+
+// ---- Account Modal (Add / Edit) ----
+const showModal = ref(false)
+const editingId = ref<number | null>(null)
+const formRef = ref()
+const accountForm = ref({ name: '', type: 'asset' as 'asset' | 'liability', sub_type: 'bank' as string, balance: null as number | null, currency: 'CNY', is_active: true })
+
+const typeOptions: SelectOption[] = [
+  { label: '资产', value: 'asset' },
+  { label: '负债', value: 'liability' },
+]
+const subTypeOptions = computed<SelectOption[]>(() =>
+  accountForm.value.type === 'asset'
+    ? [{ label: '现金', value: 'cash' }, { label: '银行卡', value: 'bank' }, { label: '投资', value: 'investment' }]
+    : [{ label: '贷款', value: 'loan' }, { label: '信用卡', value: 'credit' }]
+)
+
+function openAdd() {
+  editingId.value = null
+  accountForm.value = { name: '', type: 'asset', sub_type: 'bank', balance: null, currency: 'CNY', is_active: true }
+  showModal.value = true
+}
+
+function openEdit(account: Account) {
+  editingId.value = account.id
+  accountForm.value = { name: account.name, type: account.type, sub_type: account.sub_type, balance: Number(account.balance), currency: account.currency, is_active: account.is_active }
+  showModal.value = true
+}
+
+async function handleSave() {
+  try {
+    if (editingId.value) {
+      await updateAccount(editingId.value, {
+        name: accountForm.value.name,
+        type: accountForm.value.type,
+        sub_type: accountForm.value.sub_type,
+        balance: String(accountForm.value.balance ?? 0),
+        currency: accountForm.value.currency,
+        is_active: accountForm.value.is_active,
+      })
+      message.success('更新成功')
+    } else {
+      await addAccount({
+        name: accountForm.value.name,
+        type: accountForm.value.type,
+        sub_type: accountForm.value.sub_type,
+        balance: String(accountForm.value.balance ?? 0),
+        currency: accountForm.value.currency,
+        is_active: accountForm.value.is_active,
+      })
+      message.success('添加成功')
+    }
+    showModal.value = false
+  } catch {
+    message.error('操作失败')
+  }
+}
+
+function handleDelete(account: Account) {
+  dialog.warning({
+    title: '删除账户',
+    content: `确定要删除「${account.name}」吗？此操作不可撤销。`,
+    positiveText: '删除',
+    negativeText: '取消',
+    onPositiveClick: async () => {
+      try {
+        await deleteAccount(account.id)
+        message.success('已删除')
+      } catch {
+        message.error('删除失败')
+      }
+    },
+  })
+}
 </script>
 
 <style scoped>
 .accounts-page { padding: clamp(16px, 2vw, 32px); width: 100%; box-sizing: border-box; }
 .page-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 24px; flex-wrap: wrap; gap: 16px; }
 .page-title { margin: 0; font-size: 24px; font-weight: 700; color: var(--text-primary); }
+.header-right { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+.card-actions { display: flex; gap: 4px; flex-shrink: 0; }
+.action-btn { opacity: 0.5; transition: opacity 0.2s; }
+.action-btn:hover { opacity: 1; }
 
 .summary-pills { display: flex; gap: 12px; }
 .pill {

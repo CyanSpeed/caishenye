@@ -434,6 +434,36 @@ export function useFinance() {
     return created
   }
 
+  async function deleteTransaction(id: number): Promise<void> {
+    await window.electronAPI.deleteTransaction(id)
+    const idx = state.transactions.findIndex(t => t.id === id)
+    if (idx !== -1) state.transactions.splice(idx, 1)
+    // Refresh accounts (balances reversed)
+    const accounts = await window.electronAPI.getAccounts() as Account[]
+    state.accounts = accounts
+  }
+
+  // ---- Mutations: Accounts ----
+  async function addAccount(account: Omit<Account, 'id'>): Promise<Account> {
+    const created = await window.electronAPI.addAccount(account) as Account
+    state.accounts.push(created)
+    return created
+  }
+
+  async function updateAccount(id: number, updates: Partial<Account>): Promise<void> {
+    await window.electronAPI.updateAccount(id, updates)
+    const idx = state.accounts.findIndex(a => a.id === id)
+    if (idx !== -1) {
+      state.accounts[idx] = { ...state.accounts[idx], ...updates }
+    }
+  }
+
+  async function deleteAccount(id: number): Promise<void> {
+    await window.electronAPI.deleteAccount(id)
+    const idx = state.accounts.findIndex(a => a.id === id)
+    if (idx !== -1) state.accounts.splice(idx, 1)
+  }
+
   // ---- Mutations: Physical Assets ----
   async function addPhysicalAsset(asset: Omit<PhysicalAsset, 'id'>): Promise<PhysicalAsset> {
     const created = await window.electronAPI.addPhysicalAsset(asset) as PhysicalAsset
@@ -484,6 +514,10 @@ export function useFinance() {
     getAccountById,
     getCategoryById,
     addTransaction,
+    deleteTransaction,
+    addAccount,
+    updateAccount,
+    deleteAccount,
     addPhysicalAsset,
     updatePhysicalAsset,
     deletePhysicalAsset,

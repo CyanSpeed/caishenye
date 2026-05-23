@@ -106,15 +106,15 @@
 import { ref, computed, h } from 'vue'
 import {
   NForm, NFormItem, NInputNumber, NSelect, NDatePicker, NInput,
-  NButton, NDataTable, useMessage,
+  NButton, NDataTable, NPopconfirm, useMessage,
 } from 'naive-ui'
 import type { DataTableColumn } from 'naive-ui'
-import { PlusOutlined, ArrowUpOutlined, ArrowDownOutlined, SwapOutlined } from '@vicons/antd'
+import { PlusOutlined, ArrowUpOutlined, ArrowDownOutlined, SwapOutlined, DeleteOutlined } from '@vicons/antd'
 import { useFinance } from '../composables/useFinance'
 import { useFormatter } from '../composables/useFormatter'
 import type { TransactionType } from '@shared/types'
 
-const { sortedTransactions, expenseCategories, incomeCategories, assetAccounts, getAccountById, getCategoryById, addTransaction } = useFinance()
+const { sortedTransactions, expenseCategories, incomeCategories, assetAccounts, getAccountById, getCategoryById, addTransaction, deleteTransaction } = useFinance()
 const { currencyPlain, shortDate } = useFormatter()
 const message = useMessage()
 
@@ -185,7 +185,27 @@ const columns: DataTableColumn[] = [
       return h('span', { style: { color, fontWeight: 600, fontVariantNumeric: 'tabular-nums' } }, prefix + currencyPlain(row.amount))
     },
   },
+  {
+    title: '', key: 'actions', width: 48, align: 'center',
+    render: (row: any) => h(
+      NPopconfirm,
+      { onPositiveClick: () => handleDelete(row.id) },
+      {
+        trigger: () => h(NButton, { text: true, size: 'small', type: 'error' }, { icon: () => h(DeleteOutlined) }),
+        default: () => '确定删除这笔记录？',
+      }
+    ),
+  },
 ]
+
+async function handleDelete(id: number) {
+  try {
+    await deleteTransaction(id)
+    message.success('已删除')
+  } catch {
+    message.error('删除失败')
+  }
+}
 
 const filteredTransactions = computed(() => {
   const q = searchQuery.value.trim().toLowerCase()
