@@ -1,14 +1,17 @@
 <template>
   <n-config-provider :theme="currentTheme" :theme-overrides="themeOverrides">
     <n-message-provider>
+      <n-dialog-provider>
       <n-layout class="app-layout" has-sider>
         <n-layout-sider
+          v-model:collapsed="collapsed"
           bordered
           show-trigger
           collapse-mode="width"
           :collapsed-width="64"
           :width="240"
           :native-scrollbar="false"
+          class="sidebar-container"
         >
           <div class="sidebar-brand">
             <div class="brand-icon">财</div>
@@ -29,16 +32,15 @@
 
           <div class="sidebar-spacer" />
           <div class="sidebar-footer">
-            <!-- <n-button text @click="collapsed = !collapsed">
-              <template #icon>
-                <ChevronLeft v-if="!collapsed" :size="18" />
-                <ChevronRight v-else :size="18" />
-              </template>
-            </n-button> -->
             <n-button text @click="isDark = !isDark">
               <template #icon>
                 <Sunny v-if="isDark" :size="18" />
                 <Moon v-else :size="18" />
+              </template>
+            </n-button>
+            <n-button text @click="router.push('/settings')">
+              <template #icon>
+                <Settings :size="18" />
               </template>
             </n-button>
           </div>
@@ -52,6 +54,7 @@
           </router-view>
         </n-layout-content>
       </n-layout>
+      </n-dialog-provider>
     </n-message-provider>
   </n-config-provider>
 </template>
@@ -105,6 +108,10 @@ const ChevronLeft = makeIcon(() => [
 ])
 const ChevronRight = makeIcon(() => [
   h('polyline', { points: '9 18 15 12 9 6' }),
+])
+const Settings = makeIcon(() => [
+  h('circle', { cx: '12', cy: '12', r: '3' }),
+  h('path', { d: 'M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z' }),
 ])
 
 function renderIcon(icon: any) {
@@ -256,7 +263,27 @@ html, body, #app {
 ::-webkit-scrollbar-thumb:hover { background: var(--scrollbar-thumb-hover); }
 
 /* Naive UI sider flex column — ensures footer sticks to bottom */
-.n-layout-sider {
+.app-layout {
+  height: 100vh !important;
+}
+
+.app-layout .n-layout-sider {
+  height: 100vh !important;
+}
+
+.app-layout .n-layout-sider .n-scrollbar,
+.app-layout .n-layout-sider .n-scrollbar-container,
+.app-layout .n-layout-sider .n-scrollbar-content {
+  height: 100% !important;
+}
+
+.app-layout .n-layout-sider .n-scrollbar-content {
+  display: flex !important;
+  flex-direction: column !important;
+}
+
+.sidebar-container {
+  height: 100% !important;
   display: flex !important;
   flex-direction: column !important;
 }
@@ -315,6 +342,9 @@ html, body, #app {
   background: var(--bg-body);
   overflow-y: auto;
   padding: clamp(12px, 1.5vw, 24px);
+  flex: 1;
+  min-width: 0;
+  height: 100vh;
 }
 
 .page-fade-enter-active, .page-fade-leave-active {

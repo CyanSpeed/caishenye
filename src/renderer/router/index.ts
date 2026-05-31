@@ -28,6 +28,11 @@ const router = createRouter({
       name: 'PhysicalAssets',
       component: () => import('../views/PhysicalAssets.vue'),
     },
+    {
+      path: '/settings',
+      name: 'Settings',
+      component: () => import('../views/Settings.vue'),
+    },
   ],
 })
 

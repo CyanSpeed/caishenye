@@ -259,7 +259,7 @@ async function handleSubmit() {
 .list-header { display: flex; justify-content: space-between; align-items: center; }
 .card-title { font-size: 15px; font-weight: 600; color: var(--text-primary); }
 
-.type-toggle { display: flex; gap: 6px; width: 260px;}
+.type-toggle { display: flex; gap: 6px; width: 360px;}
 .type-btn {
   flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px;
   padding: 8px 12px; border-radius: 8px;
