@@ -105,7 +105,7 @@ export function renderReportHTML(data: QuarterlyReportData): string {
   const assetBarsHTML = assetStructure.assetComposition.map(item => `
     <div style="margin-bottom:12px;">
       <div style="display:flex;justify-content:space-between;margin-bottom:4px;"><span>${item.name}</span><span style="font-weight:600;">${fmtPct(item.percentage)}</span></div>
-      <div style="height:24px;background:#edf2f7;border-radius:4px;overflow:hidden;"><div style="width:${Math.max(item.percentage, 5)}%;height:100%;background:linear-gradient(90deg,#4299e1,#3182ce);border-radius:4px;display:flex;align-items:center;padding-left:8px;color:white;font-size:0.8em;">${fmtWan(item.value)}</div></div>
+      <div style="height:24px;background:#edf2f7;border-radius:4px;overflow:hidden;"><div style="width:${Math.max(item.percentage, 15)}%;height:100%;background:linear-gradient(90deg,#4299e1,#3182ce);border-radius:4px;display:flex;align-items:center;padding-left:8px;color:white;font-size:0.8em;white-space:nowrap;min-width:fit-content;">${fmtWan(item.value)}</div></div>
     </div>`).join('\n')
 
   // 支出构成条形图
@@ -125,7 +125,7 @@ export function renderReportHTML(data: QuarterlyReportData): string {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>${meta.familyName} ${meta.quarterLabel} 财务报告</title>
+    <title>${meta.familyName} ${meta.quarterLabel}财报</title>
     <style>
         :root {
             --primary: #1a365d;
@@ -246,7 +246,7 @@ export function renderReportHTML(data: QuarterlyReportData): string {
 <body>
 
 <div class="report-header">
-    <h1>🏠 ${meta.familyName}财务报告</h1>
+    <h1>🏠 ${meta.familyName} ${meta.quarterLabel}财报</h1>
     <div class="subtitle">Family Financial Report</div>
     <div class="period">📅 报告期：${meta.quarterLabel} (${meta.dateRange})</div>
 </div>
@@ -450,7 +450,7 @@ export function renderReportHTML(data: QuarterlyReportData): string {
     </div>
 
     <div class="report-footer">
-        <p>📄 ${meta.familyName}财务报告 | ${meta.quarterLabel}</p>
+        <p>📄 ${meta.familyName} ${meta.quarterLabel}财报 </p>
         <p>编制人：${meta.preparer} | 审核人：${meta.reviewer} | 编制日期：${meta.generatedAt.slice(0, 10)}</p>
         <p style="margin-top:8px;font-size:0.8em;color:#a0aec0;">本报告仅供家庭内部财务决策参考，所有数据为家庭实际财务数据的汇总。</p>
     </div>

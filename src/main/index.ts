@@ -45,6 +45,7 @@ function registerIpcHandlers() {
   // Transactions
   ipcMain.handle(IPC_CHANNELS.GET_TRANSACTIONS, () => ops.getAllTransactions())
   ipcMain.handle(IPC_CHANNELS.ADD_TRANSACTION, (_event, tx) => ops.addTransaction(tx))
+  ipcMain.handle(IPC_CHANNELS.UPDATE_TRANSACTION, (_event, id, updates) => ops.updateTransaction(id, updates))
   ipcMain.handle(IPC_CHANNELS.DELETE_TRANSACTION, (_event, id) => ops.deleteTransaction(id))
 
   // Investment Snapshots
@@ -68,13 +69,13 @@ function registerIpcHandlers() {
   // Quarterly Report
   ipcMain.handle(IPC_CHANNELS.GENERATE_REPORT, (_event, year, quarter) => ops.generateQuarterlyReport(year, quarter))
 
-  // Export Report PDF - 接收渲染好的 HTML 字符串，返回 PDF Buffer
-  ipcMain.handle(IPC_CHANNELS.EXPORT_REPORT_PDF, async (_event, html: string) => {
+  // Export Report PDF - 接收渲染好的 HTML 字符串和可选的默认文件名
+  ipcMain.handle(IPC_CHANNELS.EXPORT_REPORT_PDF, async (_event, html: string, defaultName?: string) => {
     const pdfBuffer = await exportHTMLToPDF(html)
     // 弹出保存对话框
     const { canceled, filePath } = await dialog.showSaveDialog({
       title: '保存财务报告 PDF',
-      defaultPath: '财务报告.pdf',
+      defaultPath: defaultName || '财务报告.pdf',
       filters: [{ name: 'PDF 文件', extensions: ['pdf'] }],
     })
     if (canceled || !filePath) return { canceled: true }

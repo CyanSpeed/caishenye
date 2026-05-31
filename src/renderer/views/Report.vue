@@ -10,13 +10,13 @@
           v-model:value="selectedYear"
           :options="yearOptions"
           placeholder="年份"
-          style="width: 120px"
+          style="width: 180px"
         />
         <n-select
           v-model:value="selectedQuarter"
           :options="quarterOptions"
           placeholder="季度"
-          style="width: 120px"
+          style="width: 180px"
         />
         <n-button type="primary" :loading="loading" @click="generateReport">
           <template #icon><FileTextOutlined /></template>
@@ -99,7 +99,9 @@ async function generateReport() {
 async function exportPDF() {
   if (!reportHTML.value) return
   try {
-    const result = await window.electronAPI.exportReportPDF(reportHTML.value)
+    const qNames = ['', 'Q1', 'Q2', 'Q3', 'Q4']
+    const defaultName = `财务报告_${selectedYear.value}年${qNames[selectedQuarter.value]}.pdf`
+    const result = await window.electronAPI.exportReportPDF(reportHTML.value, defaultName)
     if (result.canceled) return
     message.success(`PDF 已保存到：${result.filePath}`)
   } catch (err: any) {

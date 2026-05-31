@@ -17,6 +17,7 @@ const api = {
   // Transactions
   getTransactions: () => ipcRenderer.invoke(IPC_CHANNELS.GET_TRANSACTIONS),
   addTransaction: (tx: any) => ipcRenderer.invoke(IPC_CHANNELS.ADD_TRANSACTION, tx),
+  updateTransaction: (id: number, updates: any) => ipcRenderer.invoke(IPC_CHANNELS.UPDATE_TRANSACTION, id, updates),
   deleteTransaction: (id: number) => ipcRenderer.invoke(IPC_CHANNELS.DELETE_TRANSACTION, id),
 
   // Investment Snapshots
@@ -39,7 +40,7 @@ const api = {
 
   // Quarterly Report
   generateReport: (year: number, quarter: number) => ipcRenderer.invoke(IPC_CHANNELS.GENERATE_REPORT, year, quarter),
-  exportReportPDF: (html: string) => ipcRenderer.invoke(IPC_CHANNELS.EXPORT_REPORT_PDF, html),
+  exportReportPDF: (html: string, defaultName?: string) => ipcRenderer.invoke(IPC_CHANNELS.EXPORT_REPORT_PDF, html, defaultName),
 }
 
 contextBridge.exposeInMainWorld('electronAPI', api)
