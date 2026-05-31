@@ -194,14 +194,14 @@
           <n-input v-model:value="addForm.icon_emoji" placeholder="选择一个Emoji" maxlength="4" />
         </n-form-item>
         <n-form-item label="购买价格" path="purchase_price">
-          <n-input-number v-model:value="addForm.purchase_price" :min="0" :style="{ width: '100%' }">
+          <CalculatorInput v-model:value="addForm.purchase_price" :min="0">
             <template #prefix>¥</template>
-          </n-input-number>
+          </CalculatorInput>
         </n-form-item>
         <n-form-item label="当前估值" path="current_value">
-          <n-input-number v-model:value="addForm.current_value" :min="0" :style="{ width: '100%' }">
+          <CalculatorInput v-model:value="addForm.current_value" :min="0">
             <template #prefix>¥</template>
-          </n-input-number>
+          </CalculatorInput>
         </n-form-item>
         <n-form-item label="购买日期" path="purchase_date">
           <n-date-picker v-model:formatted-value="addForm.purchase_date" type="date" :style="{ width: '100%' }" />
@@ -225,9 +225,10 @@ import { ref, computed, onMounted, onUnmounted } from 'vue'
 import * as echarts from 'echarts'
 import Decimal from 'decimal.js'
 import {
-  NButton, NModal, NForm, NFormItem, NInput, NInputNumber,
+  NButton, NModal, NForm, NFormItem, NInput,
   NSelect, NDatePicker, NSpace, useMessage, useDialog,
 } from 'naive-ui'
+import CalculatorInput from '../components/CalculatorInput.vue'
 import { PlusOutlined, EditOutlined, DeleteOutlined } from '@vicons/antd'
 import { useFinance } from '../composables/useFinance'
 import type { PhysicalAsset, PhysicalAssetCategory, PhysicalAssetStatus } from '@shared/types'

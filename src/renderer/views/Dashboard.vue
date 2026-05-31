@@ -180,12 +180,12 @@ const statCards = computed(() => [
 ])
 
 function animateNumbers() {
-  const targets: { ref: HTMLElement; value: number; decimals: number }[] = []
-  if (statRefs.netWorth) targets.push({ ref: statRefs.netWorth, value: netWorth.value.abs().toNumber(), decimals: 2 })
-  if (statRefs.monthlyIncome) targets.push({ ref: statRefs.monthlyIncome, value: monthlyIncome.value.toNumber(), decimals: 2 })
-  if (statRefs.monthlyExpense) targets.push({ ref: statRefs.monthlyExpense, value: monthlyExpense.value.toNumber(), decimals: 2 })
+  const targets: { ref: HTMLElement; value: number; decimals: number; negative: boolean }[] = []
+  if (statRefs.netWorth) targets.push({ ref: statRefs.netWorth, value: netWorth.value.abs().toNumber(), decimals: 2, negative: netWorth.value.isNegative() })
+  if (statRefs.monthlyIncome) targets.push({ ref: statRefs.monthlyIncome, value: monthlyIncome.value.toNumber(), decimals: 2, negative: false })
+  if (statRefs.monthlyExpense) targets.push({ ref: statRefs.monthlyExpense, value: monthlyExpense.value.toNumber(), decimals: 2, negative: false })
 
-  targets.forEach(({ ref, value, decimals }) => {
+  targets.forEach(({ ref, value, decimals, negative }) => {
     gsap.fromTo(ref, { textContent: 0 }, {
       textContent: value,
       duration: 1.2,
@@ -193,7 +193,8 @@ function animateNumbers() {
       snap: { textContent: 1 },
       onUpdate() {
         const current = Number(ref.textContent)
-        ref.textContent = '¥' + current.toLocaleString('zh-CN', { minimumFractionDigits: decimals, maximumFractionDigits: decimals })
+        const sign = negative ? '-' : ''
+        ref.textContent = sign + '¥' + current.toLocaleString('zh-CN', { minimumFractionDigits: decimals, maximumFractionDigits: decimals })
       },
     })
   })

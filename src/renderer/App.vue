@@ -1,5 +1,5 @@
 <template>
-  <n-config-provider :theme="currentTheme" :theme-overrides="themeOverrides">
+  <n-config-provider :theme="currentTheme" :theme-overrides="themeOverrides" :locale="zhCN" :date-locale="dateZhCN">
     <n-message-provider>
       <n-dialog-provider>
       <n-layout class="app-layout" has-sider>
@@ -62,7 +62,7 @@
 <script setup lang="ts">
 import { ref, computed, h, watchEffect, defineComponent } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { darkTheme, NIcon } from 'naive-ui'
+import { darkTheme, NIcon, zhCN, dateZhCN } from 'naive-ui'
 import type { MenuOption } from 'naive-ui'
 import {
   DashboardOutlined, AccountBookOutlined,

@@ -24,15 +24,14 @@
           </n-form-item>
 
           <n-form-item label="金额" path="amount">
-            <n-input-number
+            <CalculatorInput
               v-model:value="form.amount"
               :min="0.01"
               :step="100"
               placeholder="0.00"
-              :style="{ width: '100%' }"
             >
               <template #prefix>¥</template>
-            </n-input-number>
+            </CalculatorInput>
           </n-form-item>
 
           <n-form-item label="分类" path="category_id" v-if="form.type !== 'transfer'">
@@ -105,9 +104,10 @@
 <script setup lang="ts">
 import { ref, computed, h } from 'vue'
 import {
-  NForm, NFormItem, NInputNumber, NSelect, NDatePicker, NInput,
+  NForm, NFormItem, NSelect, NDatePicker, NInput,
   NButton, NDataTable, NPopconfirm, useMessage,
 } from 'naive-ui'
+import CalculatorInput from '../components/CalculatorInput.vue'
 import type { DataTableColumn } from 'naive-ui'
 import { PlusOutlined, ArrowUpOutlined, ArrowDownOutlined, SwapOutlined, DeleteOutlined } from '@vicons/antd'
 import { useFinance } from '../composables/useFinance'

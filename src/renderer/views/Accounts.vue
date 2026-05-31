@@ -130,9 +130,9 @@
           <n-select v-model:value="accountForm.sub_type" :options="subTypeOptions" />
         </n-form-item>
         <n-form-item label="余额" path="balance">
-          <n-input-number v-model:value="accountForm.balance" :style="{ width: '100%' }">
+          <CalculatorInput v-model:value="accountForm.balance">
             <template #prefix>¥</template>
-          </n-input-number>
+          </CalculatorInput>
         </n-form-item>
         <n-form-item label="币种" path="currency">
           <n-input v-model:value="accountForm.currency" placeholder="CNY" />
@@ -144,9 +144,9 @@
           <n-input v-model:value="accountForm.notes" type="textarea" placeholder="添加备注信息..." :rows="2" />
         </n-form-item>
         <n-form-item v-if="accountForm.type === 'liability'" label="总债务" path="original_amount">
-          <n-input-number v-model:value="accountForm.original_amount" :style="{ width: '100%' }" placeholder="原始借款总额">
+          <CalculatorInput v-model:value="accountForm.original_amount" placeholder="原始借款总额">
             <template #prefix>¥</template>
-          </n-input-number>
+          </CalculatorInput>
         </n-form-item>
       </n-form>
       <template #footer>
@@ -162,9 +162,10 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import {
-  NButton, NModal, NForm, NFormItem, NInput, NInputNumber,
+  NButton, NModal, NForm, NFormItem, NInput,
   NSelect, NSwitch, NSpace, useMessage, useDialog,
 } from 'naive-ui'
+import CalculatorInput from '../components/CalculatorInput.vue'
 import type { SelectOption } from 'naive-ui'
 import { useFinance } from '../composables/useFinance'
 import { useFormatter } from '../composables/useFormatter'
