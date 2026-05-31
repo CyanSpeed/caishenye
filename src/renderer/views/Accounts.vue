@@ -52,6 +52,7 @@
           <div class="account-info">
             <div class="account-name">{{ account.name }}</div>
             <div class="account-type">{{ subTypeLabel(account.sub_type) }}</div>
+            <div v-if="account.notes" class="account-notes">{{ account.notes }}</div>
           </div>
           <div class="card-actions" @click.stop>
             <n-button text size="small" @click="openEdit(account)" class="action-btn">
@@ -93,11 +94,23 @@
                 {{ investmentReturn(account.id)! >= 0 ? '+' : '' }}{{ (investmentReturn(account.id)! * 100).toFixed(2) }}%
               </span>
             </div>
-            <div v-if="account.sub_type === 'credit'" class="detail-row hint">
-              还款日：每月{{ account.id === 11 ? '10' : '20' }}日
+            <div v-if="account.notes" class="detail-row">
+              <span class="detail-label">备注</span>
+              <span class="detail-value detail-notes">{{ account.notes }}</span>
             </div>
-            <div v-if="account.sub_type === 'loan'" class="detail-row hint">
-              剩余本金：{{ currencyPlain(account.balance) }}
+            <!-- 负债还债进度 -->
+            <div v-if="account.type === 'liability' && account.original_amount && Number(account.original_amount) > 0" class="debt-progress">
+              <div class="debt-progress-header">
+                <span class="debt-progress-label">还债进度</span>
+                <span class="debt-progress-percent">{{ debtProgress(account) }}%</span>
+              </div>
+              <div class="debt-progress-bar">
+                <div class="debt-progress-fill" :style="{ width: debtProgress(account) + '%' }" />
+              </div>
+              <div class="debt-progress-detail">
+                <span>总债务：{{ currencyPlain(account.original_amount) }}</span>
+                <span>已还：{{ currencyPlain(debtPaid(account)) }}</span>
+              </div>
             </div>
           </div>
         </Transition>
@@ -126,6 +139,14 @@
         </n-form-item>
         <n-form-item label="启用" path="is_active">
           <n-switch v-model:value="accountForm.is_active" />
+        </n-form-item>
+        <n-form-item label="备注" path="notes">
+          <n-input v-model:value="accountForm.notes" type="textarea" placeholder="添加备注信息..." :rows="2" />
+        </n-form-item>
+        <n-form-item v-if="accountForm.type === 'liability'" label="总债务" path="original_amount">
+          <n-input-number v-model:value="accountForm.original_amount" :style="{ width: '100%' }" placeholder="原始借款总额">
+            <template #prefix>¥</template>
+          </n-input-number>
         </n-form-item>
       </n-form>
       <template #footer>
@@ -200,11 +221,28 @@ function investmentReturn(accountId: number): number | null {
   return perf.returnRate.toNumber()
 }
 
+// 计算已还金额 = 总债务 - 当前余额
+function debtPaid(account: Account): string {
+  if (!account.original_amount) return '0.00'
+  const original = Number(account.original_amount)
+  const balance = Number(account.balance)
+  return String(Math.max(0, original - balance))
+}
+
+// 计算还债进度百分比
+function debtProgress(account: Account): number {
+  if (!account.original_amount || Number(account.original_amount) <= 0) return 0
+  const original = Number(account.original_amount)
+  const balance = Number(account.balance)
+  const paid = original - balance
+  return Math.min(100, Math.max(0, Math.round((paid / original) * 100)))
+}
+
 // ---- Account Modal (Add / Edit) ----
 const showModal = ref(false)
 const editingId = ref<number | null>(null)
 const formRef = ref()
-const accountForm = ref({ name: '', type: 'asset' as 'asset' | 'liability', sub_type: 'bank' as string, balance: null as number | null, currency: 'CNY', is_active: true })
+const accountForm = ref({ name: '', type: 'asset' as 'asset' | 'liability', sub_type: 'bank' as string, balance: null as number | null, currency: 'CNY', is_active: true, notes: '', original_amount: null as number | null })
 
 const typeOptions: SelectOption[] = [
   { label: '资产', value: 'asset' },
@@ -218,37 +256,42 @@ const subTypeOptions = computed<SelectOption[]>(() =>
 
 function openAdd() {
   editingId.value = null
-  accountForm.value = { name: '', type: 'asset', sub_type: 'bank', balance: null, currency: 'CNY', is_active: true }
+  accountForm.value = { name: '', type: 'asset', sub_type: 'bank', balance: null, currency: 'CNY', is_active: true, notes: '', original_amount: null }
   showModal.value = true
 }
 
 function openEdit(account: Account) {
   editingId.value = account.id
-  accountForm.value = { name: account.name, type: account.type, sub_type: account.sub_type, balance: Number(account.balance), currency: account.currency, is_active: account.is_active }
+  accountForm.value = {
+    name: account.name,
+    type: account.type,
+    sub_type: account.sub_type,
+    balance: Number(account.balance),
+    currency: account.currency,
+    is_active: account.is_active,
+    notes: account.notes || '',
+    original_amount: account.original_amount ? Number(account.original_amount) : null,
+  }
   showModal.value = true
 }
 
 async function handleSave() {
   try {
+    const baseData = {
+      name: accountForm.value.name,
+      type: accountForm.value.type,
+      sub_type: accountForm.value.sub_type,
+      balance: String(accountForm.value.balance ?? 0),
+      currency: accountForm.value.currency,
+      is_active: accountForm.value.is_active,
+      notes: accountForm.value.notes || '',
+      original_amount: accountForm.value.type === 'liability' ? String(accountForm.value.original_amount ?? 0) : '',
+    }
     if (editingId.value) {
-      await updateAccount(editingId.value, {
-        name: accountForm.value.name,
-        type: accountForm.value.type,
-        sub_type: accountForm.value.sub_type,
-        balance: String(accountForm.value.balance ?? 0),
-        currency: accountForm.value.currency,
-        is_active: accountForm.value.is_active,
-      })
+      await updateAccount(editingId.value, baseData)
       message.success('更新成功')
     } else {
-      await addAccount({
-        name: accountForm.value.name,
-        type: accountForm.value.type,
-        sub_type: accountForm.value.sub_type,
-        balance: String(accountForm.value.balance ?? 0),
-        currency: accountForm.value.currency,
-        is_active: accountForm.value.is_active,
-      })
+      await addAccount(baseData)
       message.success('添加成功')
     }
     showModal.value = false
@@ -338,6 +381,76 @@ function handleDelete(account: Account) {
 
 .text-green { color: #36B37E; }
 .text-red { color: #FF5630; }
+
+.account-notes {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-top: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 180px;
+}
+
+.detail-notes {
+  font-size: 13px;
+  color: var(--text-secondary);
+  text-align: right;
+  max-width: 200px;
+  word-break: break-all;
+}
+
+.debt-progress {
+  margin-top: 8px;
+  padding: 10px 12px;
+  background: rgba(255, 86, 48, 0.06);
+  border-radius: 8px;
+  border: 1px solid rgba(255, 86, 48, 0.12);
+}
+
+.debt-progress-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.debt-progress-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.debt-progress-percent {
+  font-size: 18px;
+  font-weight: 700;
+  color: #36B37E;
+  font-variant-numeric: tabular-nums;
+}
+
+.debt-progress-bar {
+  width: 100%;
+  height: 8px;
+  background: rgba(255, 86, 48, 0.12);
+  border-radius: 4px;
+  overflow: hidden;
+  margin-bottom: 8px;
+}
+
+.debt-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #36B37E, #2ecc71);
+  border-radius: 4px;
+  transition: width 0.6s ease;
+  min-width: 2px;
+}
+
+.debt-progress-detail {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  color: var(--text-muted);
+}
 
 .expand-enter-active, .expand-leave-active { transition: all 0.3s ease; }
 .expand-enter-from, .expand-leave-to { opacity: 0; transform: translateY(-8px); }

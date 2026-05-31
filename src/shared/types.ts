@@ -11,6 +11,8 @@ export interface Account {
   balance: string // stored as string for decimal precision
   currency: string
   is_active: boolean
+  notes: string
+  original_amount: string // 负债的原始总金额，仅负债类型使用
 }
 
 export type TransactionType = 'expense' | 'income' | 'transfer'

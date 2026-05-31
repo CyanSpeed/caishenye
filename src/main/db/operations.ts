@@ -13,8 +13,8 @@ export function getAllAccounts(): Account[] {
 export function addAccount(account: Omit<Account, 'id'>): Account {
   const db = getDatabase()
   const result = db.prepare(
-    'INSERT INTO accounts (name, type, sub_type, balance, currency, is_active) VALUES (?, ?, ?, ?, ?, ?)'
-  ).run(account.name, account.type, account.sub_type, account.balance, account.currency, account.is_active ? 1 : 0)
+    'INSERT INTO accounts (name, type, sub_type, balance, currency, is_active, notes, original_amount) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+  ).run(account.name, account.type, account.sub_type, account.balance, account.currency, account.is_active ? 1 : 0, account.notes || '', account.original_amount || '')
   return { ...account, id: Number(result.lastInsertRowid) }
 }
 
@@ -28,6 +28,8 @@ export function updateAccount(id: number, updates: Partial<Account>): void {
   if (updates.balance !== undefined) { fields.push('balance = ?'); values.push(updates.balance) }
   if (updates.currency !== undefined) { fields.push('currency = ?'); values.push(updates.currency) }
   if (updates.is_active !== undefined) { fields.push('is_active = ?'); values.push(updates.is_active ? 1 : 0) }
+  if (updates.notes !== undefined) { fields.push('notes = ?'); values.push(updates.notes) }
+  if (updates.original_amount !== undefined) { fields.push('original_amount = ?'); values.push(updates.original_amount) }
   if (fields.length === 0) return
   values.push(id)
   db.prepare(`UPDATE accounts SET ${fields.join(', ')} WHERE id = ?`).run(...values)

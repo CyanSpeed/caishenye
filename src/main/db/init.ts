@@ -20,6 +20,7 @@ export function initDatabase(): Database.Database {
   db.pragma('foreign_keys = ON')
 
   createTables(db)
+  migrateDatabase(db)
   seedIfEmpty(db)
 
   return db
@@ -34,7 +35,9 @@ function createTables(db: Database.Database) {
       sub_type TEXT NOT NULL CHECK(sub_type IN ('cash', 'bank', 'investment', 'loan', 'credit')),
       balance TEXT NOT NULL DEFAULT '0.00',
       currency TEXT NOT NULL DEFAULT 'CNY',
-      is_active INTEGER NOT NULL DEFAULT 1
+      is_active INTEGER NOT NULL DEFAULT 1,
+      notes TEXT DEFAULT '',
+      original_amount TEXT DEFAULT ''
     );
 
     CREATE TABLE IF NOT EXISTS categories (
@@ -72,7 +75,7 @@ function createTables(db: Database.Database) {
     CREATE TABLE IF NOT EXISTS physical_assets (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       name TEXT NOT NULL,
-      category TEXT NOT NULL CHECK(category IN ('家电', '数码', '汽车', '奢侈品')),
+      category TEXT NOT NULL CHECK(category IN ('家电', '数码', '汽车', '奢侈品', '房产')),
       icon_emoji TEXT DEFAULT '',
       purchase_price TEXT NOT NULL,
       purchase_date TEXT NOT NULL,
@@ -84,13 +87,56 @@ function createTables(db: Database.Database) {
   `)
 }
 
+function migrateDatabase(db: Database.Database) {
+  // 为已有数据库添加新列（兼容旧版本）
+  const addColumnIfNotExists = (table: string, column: string, definition: string) => {
+    try {
+      db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`)
+    } catch {
+      // 列已存在，忽略错误
+    }
+  }
+  addColumnIfNotExists('accounts', 'notes', "TEXT DEFAULT ''")
+  addColumnIfNotExists('accounts', 'original_amount', "TEXT DEFAULT ''")
+
+  // 迁移：physical_assets 表的 CHECK 约束添加 '房产' 分类
+  // SQLite 不支持修改 CHECK 约束，需要重建表
+  try {
+    const hasOldConstraint = db.prepare(
+      "SELECT sql FROM sqlite_master WHERE type='table' AND name='physical_assets'"
+    ).get() as { sql: string } | undefined
+
+    if (hasOldConstraint && !hasOldConstraint.sql.includes("'房产'")) {
+      db.exec(`
+        CREATE TABLE physical_assets_new (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          name TEXT NOT NULL,
+          category TEXT NOT NULL CHECK(category IN ('家电', '数码', '汽车', '奢侈品', '房产')),
+          icon_emoji TEXT DEFAULT '',
+          purchase_price TEXT NOT NULL,
+          purchase_date TEXT NOT NULL,
+          current_value TEXT NOT NULL,
+          image_url TEXT DEFAULT '',
+          notes TEXT DEFAULT '',
+          status TEXT NOT NULL DEFAULT '使用中' CHECK(status IN ('使用中', '已出售', '已报废'))
+        );
+        INSERT INTO physical_assets_new SELECT * FROM physical_assets;
+        DROP TABLE physical_assets;
+        ALTER TABLE physical_assets_new RENAME TO physical_assets;
+      `)
+    }
+  } catch {
+    // 迁移已执行或表不存在，忽略
+  }
+}
+
 function seedIfEmpty(db: Database.Database) {
   const count = db.prepare('SELECT COUNT(*) as cnt FROM accounts').get() as { cnt: number }
   if (count.cnt > 0) return
 
   const seedAccounts = db.prepare(`
-    INSERT INTO accounts (id, name, type, sub_type, balance, currency, is_active)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO accounts (id, name, type, sub_type, balance, currency, is_active, notes, original_amount)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
   `)
   const seedCategories = db.prepare(`
     INSERT INTO categories (id, name, type, icon) VALUES (?, ?, ?, ?)
@@ -109,19 +155,20 @@ function seedIfEmpty(db: Database.Database) {
   `)
 
   const insertAll = db.transaction(() => {
-    // Accounts
-    seedAccounts.run(1, '现金钱包', 'asset', 'cash', '5000.00', 'CNY', 1)
-    seedAccounts.run(2, '招商银行储蓄卡', 'asset', 'bank', '156800.50', 'CNY', 1)
-    seedAccounts.run(3, '工商银行工资卡', 'asset', 'bank', '42300.00', 'CNY', 1)
-    seedAccounts.run(4, '支付宝余额', 'asset', 'cash', '8520.75', 'CNY', 1)
-    seedAccounts.run(5, '微信零钱', 'asset', 'cash', '1230.00', 'CNY', 1)
-    seedAccounts.run(6, '华泰证券股票账户', 'asset', 'investment', '285000.00', 'CNY', 1)
-    seedAccounts.run(7, '易方达基金账户', 'asset', 'investment', '120000.00', 'CNY', 1)
-    seedAccounts.run(8, '建设银行定期存款', 'asset', 'investment', '200000.00', 'CNY', 1)
-    seedAccounts.run(9, '房贷账户', 'liability', 'loan', '1200000.00', 'CNY', 1)
-    seedAccounts.run(10, '车贷账户', 'liability', 'loan', '85000.00', 'CNY', 1)
-    seedAccounts.run(11, '招商银行信用卡', 'liability', 'credit', '12500.00', 'CNY', 1)
-    seedAccounts.run(12, '花呗', 'liability', 'credit', '3200.00', 'CNY', 1)
+    // Accounts - 资产账户
+    seedAccounts.run(1, '现金钱包', 'asset', 'cash', '5000.00', 'CNY', 1, '日常现金备用', '')
+    seedAccounts.run(2, '招商银行储蓄卡', 'asset', 'bank', '156800.50', 'CNY', 1, '主工资卡，每月工资入账', '')
+    seedAccounts.run(3, '工商银行工资卡', 'asset', 'bank', '42300.00', 'CNY', 1, '副卡，理财专用', '')
+    seedAccounts.run(4, '支付宝余额', 'asset', 'cash', '8520.75', 'CNY', 1, '日常消费主力', '')
+    seedAccounts.run(5, '微信零钱', 'asset', 'cash', '1230.00', 'CNY', 1, '社交红包和小额支付', '')
+    seedAccounts.run(6, '华泰证券股票账户', 'asset', 'investment', '285000.00', 'CNY', 1, 'A股投资，长期持有为主', '')
+    seedAccounts.run(7, '易方达基金账户', 'asset', 'investment', '120000.00', 'CNY', 1, '定投指数基金', '')
+    seedAccounts.run(8, '建设银行定期存款', 'asset', 'investment', '200000.00', 'CNY', 1, '3年期定期，2027年到期', '')
+    // Accounts - 负债账户（含备注和总债务）
+    seedAccounts.run(9, '房贷账户', 'liability', 'loan', '1200000.00', 'CNY', 1, '2023年购房贷款，30年期，月供6500', '1500000.00')
+    seedAccounts.run(10, '车贷账户', 'liability', 'loan', '85000.00', 'CNY', 1, '比亚迪汉EV车贷，3年期', '120000.00')
+    seedAccounts.run(11, '招商银行信用卡', 'liability', 'credit', '12500.00', 'CNY', 1, '每月10日还款，额度5万', '12500.00')
+    seedAccounts.run(12, '花呗', 'liability', 'credit', '3200.00', 'CNY', 1, '每月20日自动还款', '3200.00')
 
     // Categories
     seedCategories.run(1, '餐饮', 'expense', 'restaurant')
