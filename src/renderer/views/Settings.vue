@@ -6,6 +6,70 @@
     </div>
 
     <div class="settings-content">
+      <!-- 家庭信息 -->
+      <div class="glass-card settings-section">
+        <div class="section-title">
+          <span style="font-size: 20px;">🏠</span>
+          <span>家庭信息</span>
+        </div>
+
+        <div class="settings-group">
+          <div class="setting-item">
+            <div class="setting-label">
+              <span class="label-text">家庭名称</span>
+              <span class="label-desc">显示在财务报告标题中</span>
+            </div>
+            <n-input v-model:value="familyInfo.familyName" placeholder="如：张先生家庭" style="width: 200px" />
+          </div>
+
+          <div class="setting-item">
+            <div class="setting-label">
+              <span class="label-text">城市</span>
+              <span class="label-desc">家庭所在城市</span>
+            </div>
+            <n-input v-model:value="familyInfo.city" placeholder="如：上海" style="width: 200px" />
+          </div>
+
+          <div class="setting-item">
+            <div class="setting-label">
+              <span class="label-text">编制人</span>
+              <span class="label-desc">报告编制人姓名</span>
+            </div>
+            <n-input v-model:value="familyInfo.preparer" placeholder="如：李女士" style="width: 200px" />
+          </div>
+
+          <div class="setting-item">
+            <div class="setting-label">
+              <span class="label-text">审核人</span>
+              <span class="label-desc">报告审核人姓名</span>
+            </div>
+            <n-input v-model:value="familyInfo.reviewer" placeholder="如：张先生" style="width: 200px" />
+          </div>
+
+          <div class="setting-item" style="flex-direction: column; align-items: flex-start; gap: 12px;">
+            <div class="setting-label">
+              <span class="label-text">家庭成员</span>
+              <span class="label-desc">添加家庭成员信息</span>
+            </div>
+            <div class="members-list">
+              <div v-for="(member, idx) in familyInfo.members" :key="idx" class="member-row">
+                <n-input v-model:value="member.name" placeholder="姓名" style="width: 120px" />
+                <n-select v-model:value="member.role" :options="roleOptions" placeholder="角色" style="width: 100px" />
+                <n-input-number v-model:value="member.age" :min="0" :max="150" placeholder="年龄" style="width: 100px" />
+                <n-button text type="error" @click="familyInfo.members.splice(idx, 1)">删除</n-button>
+              </div>
+              <n-button dashed @click="familyInfo.members.push({ name: '', role: '', age: 0 })" style="width: 100%">
+                + 添加成员
+              </n-button>
+            </div>
+          </div>
+
+          <div class="setting-item" style="justify-content: flex-end;">
+            <n-button type="primary" @click="saveFamilyInfo">保存家庭信息</n-button>
+          </div>
+        </div>
+      </div>
+
       <!-- 财务管理配置 -->
       <div class="glass-card settings-section">
         <div class="section-title">
@@ -150,13 +214,58 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive } from 'vue'
-import { NSelect, NSwitch } from 'naive-ui'
+import { ref, reactive, onMounted } from 'vue'
+import { NSelect, NSwitch, NInput, NInputNumber, NButton, useMessage } from 'naive-ui'
 import {
   WalletOutlined,
   EyeOutlined,
   InfoCircleOutlined,
 } from '@vicons/antd'
+import type { FamilyInfo } from '@shared/types'
+
+const message = useMessage()
+
+// 家庭信息
+const familyInfo = reactive<FamilyInfo>({
+  familyName: '',
+  members: [],
+  city: '',
+  preparer: '',
+  reviewer: '',
+})
+
+const roleOptions = [
+  { label: '户主', value: '户主' },
+  { label: '配偶', value: '配偶' },
+  { label: '子女', value: '子女' },
+  { label: '父母', value: '父母' },
+]
+
+async function loadFamilyInfo() {
+  try {
+    const settings = await window.electronAPI.getSettings() as { key: string; value: string }[]
+    const info = settings.find(s => s.key === 'family_info')
+    if (info) {
+      const parsed = JSON.parse(info.value) as FamilyInfo
+      Object.assign(familyInfo, parsed)
+    }
+  } catch {
+    // 忽略加载错误
+  }
+}
+
+async function saveFamilyInfo() {
+  try {
+    await window.electronAPI.updateSetting('family_info', JSON.stringify(familyInfo))
+    message.success('家庭信息已保存')
+  } catch (err: any) {
+    message.error(`保存失败：${err.message || '未知错误'}`)
+  }
+}
+
+onMounted(() => {
+  loadFamilyInfo()
+})
 
 // 设置数据
 const settings = reactive({
@@ -368,5 +477,18 @@ const dateFormatOptions = [
 
 .info-description p:last-child {
   margin-bottom: 0;
+}
+
+.members-list {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.member-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 </style>

@@ -29,6 +29,11 @@ const router = createRouter({
       component: () => import('../views/PhysicalAssets.vue'),
     },
     {
+      path: '/report',
+      name: 'Report',
+      component: () => import('../views/Report.vue'),
+    },
+    {
       path: '/settings',
       name: 'Settings',
       component: () => import('../views/Settings.vue'),

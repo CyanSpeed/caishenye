@@ -66,7 +66,7 @@ import { darkTheme, NIcon, zhCN, dateZhCN } from 'naive-ui'
 import type { MenuOption } from 'naive-ui'
 import {
   DashboardOutlined, AccountBookOutlined,
-  WalletOutlined, StockOutlined, GiftOutlined,
+  WalletOutlined, StockOutlined, GiftOutlined, FileTextOutlined,
 } from '@vicons/antd'
 
 const router = useRouter()
@@ -124,6 +124,7 @@ const menuOptions: MenuOption[] = [
   { label: '交易记账', key: '/transaction', icon: renderIcon(AccountBookOutlined) },
   { label: '投资分析', key: '/investment', icon: renderIcon(StockOutlined) },
   { label: '实物资产', key: '/physical-assets', icon: renderIcon(GiftOutlined) },
+  { label: '财务报告', key: '/report', icon: renderIcon(FileTextOutlined) },
 ]
 
 function handleMenuClick(key: string) {

@@ -29,6 +29,17 @@ const api = {
   addPhysicalAsset: (asset: any) => ipcRenderer.invoke(IPC_CHANNELS.ADD_PHYSICAL_ASSET, asset),
   updatePhysicalAsset: (id: number, updates: any) => ipcRenderer.invoke(IPC_CHANNELS.UPDATE_PHYSICAL_ASSET, id, updates),
   deletePhysicalAsset: (id: number) => ipcRenderer.invoke(IPC_CHANNELS.DELETE_PHYSICAL_ASSET, id),
+
+  // Settings
+  getSettings: () => ipcRenderer.invoke(IPC_CHANNELS.GET_SETTINGS),
+  updateSetting: (key: string, value: string) => ipcRenderer.invoke(IPC_CHANNELS.UPDATE_SETTING, key, value),
+
+  // Net Worth Snapshots
+  getNetWorthSnapshots: () => ipcRenderer.invoke(IPC_CHANNELS.GET_NET_WORTH_SNAPSHOTS),
+
+  // Quarterly Report
+  generateReport: (year: number, quarter: number) => ipcRenderer.invoke(IPC_CHANNELS.GENERATE_REPORT, year, quarter),
+  exportReportPDF: (html: string) => ipcRenderer.invoke(IPC_CHANNELS.EXPORT_REPORT_PDF, html),
 }
 
 contextBridge.exposeInMainWorld('electronAPI', api)

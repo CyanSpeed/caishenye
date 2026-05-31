@@ -152,3 +152,4 @@ vite.config.ts.timestamp-*
 dist-electron/
 dist-electron/main/index.js
 dist-electron/preload/index.js
+.claude/settings.local.json

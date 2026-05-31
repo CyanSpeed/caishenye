@@ -1,8 +1,9 @@
-import { app, BrowserWindow, ipcMain } from 'electron'
+import { app, BrowserWindow, ipcMain, dialog } from 'electron'
 import { join } from 'path'
 import { initDatabase, closeDatabase } from './db/init'
 import * as ops from './db/operations'
 import { IPC_CHANNELS } from '@shared/types'
+import { exportHTMLToPDF } from './report/export'
 
 let mainWindow: BrowserWindow | null = null
 
@@ -56,6 +57,31 @@ function registerIpcHandlers() {
   ipcMain.handle(IPC_CHANNELS.ADD_PHYSICAL_ASSET, (_event, asset) => ops.addPhysicalAsset(asset))
   ipcMain.handle(IPC_CHANNELS.UPDATE_PHYSICAL_ASSET, (_event, id, updates) => ops.updatePhysicalAsset(id, updates))
   ipcMain.handle(IPC_CHANNELS.DELETE_PHYSICAL_ASSET, (_event, id) => ops.deletePhysicalAsset(id))
+
+  // Settings
+  ipcMain.handle(IPC_CHANNELS.GET_SETTINGS, () => ops.getAllSettings())
+  ipcMain.handle(IPC_CHANNELS.UPDATE_SETTING, (_event, key, value) => ops.updateSetting(key, value))
+
+  // Net Worth Snapshots
+  ipcMain.handle(IPC_CHANNELS.GET_NET_WORTH_SNAPSHOTS, () => ops.getAllNetWorthSnapshots())
+
+  // Quarterly Report
+  ipcMain.handle(IPC_CHANNELS.GENERATE_REPORT, (_event, year, quarter) => ops.generateQuarterlyReport(year, quarter))
+
+  // Export Report PDF - 接收渲染好的 HTML 字符串，返回 PDF Buffer
+  ipcMain.handle(IPC_CHANNELS.EXPORT_REPORT_PDF, async (_event, html: string) => {
+    const pdfBuffer = await exportHTMLToPDF(html)
+    // 弹出保存对话框
+    const { canceled, filePath } = await dialog.showSaveDialog({
+      title: '保存财务报告 PDF',
+      defaultPath: '财务报告.pdf',
+      filters: [{ name: 'PDF 文件', extensions: ['pdf'] }],
+    })
+    if (canceled || !filePath) return { canceled: true }
+    const fs = await import('fs/promises')
+    await fs.writeFile(filePath, pdfBuffer)
+    return { canceled: false, filePath }
+  })
 }
 
 app.whenReady().then(() => {

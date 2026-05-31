@@ -59,6 +59,136 @@ export interface Category {
   name: string
   type: 'income' | 'expense'
   icon: string
+  expense_nature: '' | 'fixed' | 'variable'
+  cashflow_type: 'operating' | 'investing' | 'financing'
+}
+
+// ===== Settings =====
+
+export interface Settings {
+  key: string
+  value: string
+}
+
+export interface FamilyInfo {
+  familyName: string
+  members: { name: string; role: string; age: number }[]
+  city: string
+  preparer: string
+  reviewer: string
+}
+
+// ===== Net Worth Snapshots =====
+
+export interface NetWorthSnapshot {
+  id: number
+  date: string
+  total_assets: string
+  total_liabilities: string
+  net_worth: string
+}
+
+// ===== Quarterly Report =====
+
+export interface BalanceSheetItem {
+  name: string
+  amount: number
+  percentage: number
+  note: string
+}
+
+export interface IncomeExpenseItem {
+  name: string
+  amount: number
+  percentage: number
+}
+
+export interface CashFlowItem {
+  name: string
+  amount: number
+  note: string
+}
+
+export interface KPIData {
+  name: string
+  formula: string
+  value: number
+  displayValue: string
+  status: 'good' | 'warn' | 'bad'
+  verdict: string
+  barPercentage: number
+}
+
+export interface QuarterlyReportData {
+  meta: {
+    familyName: string
+    members: { name: string; role: string; age: number }[]
+    city: string
+    preparer: string
+    reviewer: string
+    year: number
+    quarter: number
+    quarterLabel: string
+    dateRange: string
+    generatedAt: string
+  }
+  summary: {
+    totalAssets: number
+    totalLiabilities: number
+    netWorth: number
+    quarterlyNetSavings: number
+    savingsRate: number
+    totalAssetsChange: number
+    totalLiabilitiesChange: number
+    netWorthChange: number
+  }
+  balanceSheet: {
+    assets: {
+      liquid: BalanceSheetItem[]
+      investment: BalanceSheetItem[]
+      fixed: BalanceSheetItem[]
+      liquidTotal: number
+      investmentTotal: number
+      fixedTotal: number
+      grandTotal: number
+    }
+    liabilities: {
+      shortTerm: BalanceSheetItem[]
+      longTerm: BalanceSheetItem[]
+      shortTermTotal: number
+      longTermTotal: number
+      grandTotal: number
+    }
+  }
+  incomeStatement: {
+    income: {
+      categories: IncomeExpenseItem[]
+      total: number
+    }
+    expense: {
+      fixed: IncomeExpenseItem[]
+      variable: IncomeExpenseItem[]
+      fixedTotal: number
+      variableTotal: number
+      total: number
+    }
+    netSavings: number
+    savingsRate: number
+  }
+  cashFlow: {
+    operating: CashFlowItem[]
+    investing: CashFlowItem[]
+    financing: CashFlowItem[]
+    operatingTotal: number
+    investingTotal: number
+    financingTotal: number
+    netCashFlow: number
+  }
+  kpis: KPIData[]
+  assetStructure: {
+    assetComposition: { name: string; value: number; percentage: number }[]
+    expenseComposition: { name: string; value: number; percentage: number }[]
+  }
 }
 
 // ===== IPC Channel Names =====
@@ -85,4 +215,12 @@ export const IPC_CHANNELS = {
   ADD_PHYSICAL_ASSET: 'add-physical-asset',
   UPDATE_PHYSICAL_ASSET: 'update-physical-asset',
   DELETE_PHYSICAL_ASSET: 'delete-physical-asset',
+  // Settings
+  GET_SETTINGS: 'get-settings',
+  UPDATE_SETTING: 'update-setting',
+  // Net Worth Snapshots
+  GET_NET_WORTH_SNAPSHOTS: 'get-net-worth-snapshots',
+  // Quarterly Report
+  GENERATE_REPORT: 'generate-report',
+  EXPORT_REPORT_PDF: 'export-report-pdf',
 } as const
