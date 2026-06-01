@@ -18,7 +18,7 @@
       </div>
       <div class="glass-card summary-card">
         <div class="summary-label">当前估值</div>
-        <div class="summary-value" :class="totalDepreciation.isNegative() ? 'text-red' : 'text-green'">
+        <div class="summary-value" :class="totalDepreciation.isNegative() ? 'text-loss' : 'text-profit'">
           {{ currencyPlain(totalCurrentValue) }}
         </div>
         <div class="summary-sub">
@@ -159,7 +159,7 @@
               </div>
               <div class="detail-item">
                 <span class="detail-label">折旧率</span>
-                <span class="detail-value" :class="depreciationRate(item) > 30 ? 'text-red' : 'text-muted'">
+                <span class="detail-value" :class="depreciationRate(item) > 30 ? 'text-loss' : 'text-muted'">
                   {{ depreciationRate(item).toFixed(1) }}%
                 </span>
               </div>
@@ -338,9 +338,9 @@ function depreciationRate(item: PhysicalAsset): number {
 
 function valueColor(item: PhysicalAsset): string {
   const rate = depreciationRate(item)
-  if (rate > 30) return 'text-red'
+  if (rate > 30) return 'text-loss'
   if (rate > 10) return 'text-orange'
-  return 'text-green'
+  return 'text-profit'
 }
 
 function statusClass(status: PhysicalAssetStatus): string {
@@ -777,8 +777,8 @@ onUnmounted(() => {
 .chart-box { width: 100%; height: clamp(200px, 18vh, 320px); min-height: 180px; }
 
 /* Colors */
-.text-green { color: #36B37E; }
-.text-red { color: #FF5630; }
+.text-green { color: var(--color-profit); }
+.text-red { color: var(--color-loss); }
 .text-orange { color: #FF8B64; }
 .text-muted { color: var(--text-muted); }
 

@@ -223,7 +223,37 @@ html {
   --accent-blue: #60A5FA;
   --accent-purple: #A78BFA;
   --accent-yellow: #FBBF24;
+
+  /* 默认：绿涨红跌（国际惯例） */
+  --color-profit: #10B981;
+  --color-loss: #EF4444;
+  --color-profit-bg: #F0FDF4;
+  --color-loss-bg: #FEF2F2;
 }
+
+/* 红涨绿跌（中国惯例）：红=盈利，绿=亏损 */
+html[data-color-mode="cn"] {
+  --color-profit: #EF4444;
+  --color-loss: #10B981;
+  --color-profit-bg: #FEF2F2;
+  --color-loss-bg: #F0FDF4;
+  --accent-green: #EF4444;
+  --accent-red: #10B981;
+}
+
+/* 绿涨红跌（国际惯例）：绿=盈利，红=亏损 */
+html[data-color-mode="west"] {
+  --color-profit: #10B981;
+  --color-loss: #EF4444;
+  --color-profit-bg: #F0FDF4;
+  --color-loss-bg: #FEF2F2;
+  --accent-green: #10B981;
+  --accent-red: #F87171;
+}
+
+/* 语义化颜色类 */
+.text-profit { color: var(--color-profit) !important; }
+.text-loss { color: var(--color-loss) !important; }
 html.theme-dark {
   --bg-body: #0D1117;
   --bg-card: rgba(255, 255, 255, 0.05);

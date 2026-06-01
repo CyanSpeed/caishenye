@@ -55,8 +55,10 @@ import { NSelect, NButton, NSpin, useMessage } from 'naive-ui'
 import { FileTextOutlined, DownloadOutlined } from '@vicons/antd'
 import type { QuarterlyReportData } from '@shared/types'
 import { renderReportHTML } from '../utils/reportTemplate'
+import { useColorMode } from '../composables/useColorMode'
 
 const message = useMessage()
+const { colorMode } = useColorMode()
 
 const currentYear = new Date().getFullYear()
 const currentMonth = new Date().getMonth() + 1
@@ -87,7 +89,7 @@ async function generateReport() {
   reportHTML.value = ''
   try {
     const data = await window.electronAPI.generateReport(selectedYear.value, selectedQuarter.value) as QuarterlyReportData
-    reportHTML.value = renderReportHTML(data)
+    reportHTML.value = renderReportHTML(data, colorMode.value)
     message.success('报告生成成功')
   } catch (err: any) {
     message.error(`生成失败：${err.message || '未知错误'}`)

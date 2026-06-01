@@ -25,7 +25,14 @@ function fmtChange(n: number): string {
   return '— 持平'
 }
 
-export function renderReportHTML(data: QuarterlyReportData): string {
+export function renderReportHTML(data: QuarterlyReportData, colorMode: 'cn' | 'west' = 'west'): string {
+  // 根据颜色模式决定盈利/亏损配色
+  const profitColor = colorMode === 'cn' ? '#EF4444' : '#10B981'
+  const lossColor = colorMode === 'cn' ? '#10B981' : '#EF4444'
+  const profitColorDark = colorMode === 'cn' ? '#DC2626' : '#059669'
+  const lossColorDark = colorMode === 'cn' ? '#059669' : '#DC2626'
+  const profitBg = colorMode === 'cn' ? '#FEF2F2' : '#F0FDF4'
+  const lossBg = colorMode === 'cn' ? '#F0FDF4' : '#FEF2F2'
   const { meta, summary, balanceSheet, incomeStatement, cashFlow, kpis, assetStructure } = data
 
   // 家庭成员信息
@@ -110,7 +117,7 @@ export function renderReportHTML(data: QuarterlyReportData): string {
 
   // 支出构成条形图
   const expenseBarsHTML = assetStructure.expenseComposition.slice(0, 6).map(item => {
-    const colors = ['#e53e3e', '#dd6b20', '#3182ce', '#805ad5', '#38a169', '#718096']
+    const colors = [lossColor, '#dd6b20', '#3182ce', '#805ad5', profitColor, '#718096']
     const idx = assetStructure.expenseComposition.indexOf(item)
     const color = colors[idx % colors.length]
     return `
@@ -130,8 +137,8 @@ export function renderReportHTML(data: QuarterlyReportData): string {
         :root {
             --primary: #1a365d;
             --primary-light: #2c5282;
-            --accent: #e53e3e;
-            --green: #38a169;
+            --accent: ${lossColor};
+            --green: ${profitColor};
             --orange: #dd6b20;
             --bg: #f7fafc;
             --card-bg: #ffffff;
@@ -324,7 +331,7 @@ export function renderReportHTML(data: QuarterlyReportData): string {
 
                     <tr class="total-row"><td>📉 负债总计</td><td class="amount">${fmtAmount(balanceSheet.liabilities.grandTotal)}</td><td class="pct">100%</td><td></td></tr>
 
-                    <tr style="background:#f0fff4;"><td style="font-weight:700;font-size:1.1em;">✨ 净资产（总资产 - 总负债）</td><td class="amount" style="font-weight:700;font-size:1.1em;color:#38a169;">${fmtAmount(summary.netWorth)}</td><td class="pct" style="font-weight:700;">—</td><td class="note">家庭真实财富</td></tr>
+                    <tr style="background:${profitBg};"><td style="font-weight:700;font-size:1.1em;">✨ 净资产（总资产 - 总负债）</td><td class="amount" style="font-weight:700;font-size:1.1em;color:${profitColor};">${fmtAmount(summary.netWorth)}</td><td class="pct" style="font-weight:700;">—</td><td class="note">家庭真实财富</td></tr>
                 </tbody>
             </table>
         </div>
@@ -370,7 +377,7 @@ export function renderReportHTML(data: QuarterlyReportData): string {
             <br>
             <table class="fin-table">
                 <tbody>
-                    <tr class="total-row" style="background: linear-gradient(135deg, #38a169, #2f855a);">
+                    <tr class="total-row" style="background: linear-gradient(135deg, ${profitColor}, ${profitColorDark});">
                         <td style="font-size:1.1em;">✨ 本季度净结余（收入 - 支出）</td>
                         <td class="amount" style="font-size:1.3em;">${fmtWan(incomeStatement.income.total - incomeStatement.expense.total)}</td>
                         <td class="pct" style="font-size:1em;">储蓄率 ${fmtPct(incomeStatement.savingsRate)}</td>

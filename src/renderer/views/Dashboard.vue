@@ -163,19 +163,19 @@ const statCards = computed(() => [
     key: 'netWorth', label: '净资产', prefix: '',
     displayValue: currencyPlain(netWorth.value),
     sub: `${currencyPlain(totalAssets.value)} - ${currencyPlain(totalLiabilities.value)}`,
-    colorClass: netWorth.value.isNegative() ? 'text-red' : 'text-green',
+    colorClass: netWorth.value.isNegative() ? 'text-loss' : 'text-profit',
   },
   {
     key: 'monthlyIncome', label: '本月收入', prefix: '+',
     displayValue: currencyPlain(monthlyIncome.value),
     sub: `${recentTransactions.value.filter(t => t.type === 'income').length} 笔`,
-    colorClass: 'text-green',
+    colorClass: 'text-profit',
   },
   {
     key: 'monthlyExpense', label: '本月支出', prefix: '-',
     displayValue: currencyPlain(monthlyExpense.value),
     sub: `${recentTransactions.value.filter(t => t.type === 'expense').length} 笔`,
-    colorClass: 'text-red',
+    colorClass: 'text-loss',
   },
 ])
 
@@ -205,8 +205,8 @@ function txIcon(type: string) {
   return type === 'income' ? ArrowUpOutlined : type === 'expense' ? ArrowDownOutlined : SwapOutlined
 }
 function amountClass(tx: import('@shared/types').Transaction) {
-  if (tx.type === 'income') return 'text-green'
-  if (tx.type === 'expense') return 'text-red'
+  if (tx.type === 'income') return 'text-profit'
+  if (tx.type === 'expense') return 'text-loss'
   return 'text-blue'
 }
 function amountText(tx: import('@shared/types').Transaction) {
@@ -774,8 +774,8 @@ onUnmounted(() => {
   color: #9CA3AF;
 }
 
-.text-green { color: #10B981; }
-.text-red { color: #F87171; }
+.text-green { color: var(--color-profit); }
+.text-red { color: var(--color-loss); }
 .text-blue { color: #60A5FA; }
 
 /* Charts */

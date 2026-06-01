@@ -52,17 +52,24 @@
           <div class="account-info">
             <div class="account-name">{{ account.name }}</div>
             <div class="account-type">{{ subTypeLabel(account.sub_type) }}</div>
-            <div v-if="account.notes" class="account-notes">{{ account.notes }}</div>
+            <div class="account-sync-info">
+              <span v-if="account.sync_mode === 'exact'" class="sync-badge sync-badge--exact">精确同步</span>
+              <span v-else class="sync-badge sync-badge--approx">近似记账</span>
+              <span v-if="account.last_synced_at" class="sync-time">上次同步: {{ formatDate(account.last_synced_at) }}</span>
+            </div>
           </div>
           <div class="card-actions" @click.stop>
-            <n-button text size="small" @click="openEdit(account)" class="action-btn">
+            <n-button text size="small" type="primary" @click="openSync(account)" class="action-btn" title="同步余额">
+              <template #icon><SyncOutlined /></template>
+            </n-button>
+            <n-button text size="small" @click="openEdit(account)" class="action-btn" title="编辑">
               <template #icon><EditOutlined /></template>
             </n-button>
-            <n-button text size="small" type="error" @click="handleDelete(account)" class="action-btn">
+            <n-button text size="small" type="error" @click="handleDelete(account)" class="action-btn" title="删除">
               <template #icon><DeleteOutlined /></template>
             </n-button>
           </div>
-          <div class="account-balance" :class="account.type === 'asset' ? 'text-green' : 'text-red'">
+          <div class="account-balance" :class="account.type === 'asset' ? 'text-profit' : 'text-loss'">
             {{ account.type === 'liability' ? '-' : '' }}{{ currencyPlain(account.balance) }}
           </div>
         </div>
@@ -88,9 +95,21 @@
                 {{ account.is_active ? '启用' : '停用' }}
               </span>
             </div>
+            <div class="detail-row">
+              <span class="detail-label">记账模式</span>
+              <span class="detail-value">
+                <n-select
+                  :value="account.sync_mode"
+                  :options="syncModeOptions"
+                  size="tiny"
+                  style="width: 100px"
+                  @update:value="(val: string) => handleSyncModeChange(account, val)"
+                />
+              </span>
+            </div>
             <div v-if="account.sub_type === 'investment' && investmentReturn(account.id)" class="detail-row">
               <span class="detail-label">投资收益率</span>
-              <span class="detail-value" :class="investmentReturn(account.id)! >= 0 ? 'text-green' : 'text-red'">
+              <span class="detail-value" :class="investmentReturn(account.id)! >= 0 ? 'text-profit' : 'text-loss'">
                 {{ investmentReturn(account.id)! >= 0 ? '+' : '' }}{{ (investmentReturn(account.id)! * 100).toFixed(2) }}%
               </span>
             </div>
@@ -156,14 +175,61 @@
         </n-space>
       </template>
     </n-modal>
+
+    <!-- Sync Balance Modal -->
+    <n-modal v-model:show="showSyncModal" preset="card" title="同步余额" style="width: 420px;">
+      <div v-if="syncAccount" class="sync-modal-content">
+        <div class="sync-account-info">
+          <div class="sync-account-name">{{ syncAccount.name }}</div>
+          <div class="sync-account-current">
+            当前记录余额：<span class="text-bold">{{ currencyPlain(syncAccount.balance) }}</span>
+          </div>
+        </div>
+
+        <n-form label-placement="top">
+          <n-form-item label="真实余额（从银行APP/账单核对）">
+            <CalculatorInput v-model:value="syncForm.new_balance" placeholder="输入真实余额">
+              <template #prefix>¥</template>
+            </CalculatorInput>
+          </n-form-item>
+
+          <div v-if="syncDiff !== null" class="sync-diff-info">
+            <div class="sync-diff-label">差额：</div>
+            <div class="sync-diff-value" :class="syncDiff >= 0 ? 'text-profit' : 'text-loss'">
+              {{ syncDiff >= 0 ? '+' : '' }}{{ currencyPlain(syncDiff) }}
+            </div>
+          </div>
+
+          <n-form-item v-if="syncDiff !== null && syncDiff !== 0" label="差额处理方式">
+            <n-radio-group v-model:value="syncForm.diff_handling">
+              <n-space>
+                <n-radio value="expense">记为支出（日常开销遗漏）</n-radio>
+                <n-radio value="income">记为收入（收入遗漏）</n-radio>
+                <n-radio value="ignore">忽略（仅更新余额）</n-radio>
+              </n-space>
+            </n-radio-group>
+          </n-form-item>
+
+          <n-form-item label="备注">
+            <n-input v-model:value="syncForm.note" placeholder="可选，添加备注..." />
+          </n-form-item>
+        </n-form>
+      </div>
+      <template #footer>
+        <n-space justify="end">
+          <n-button @click="showSyncModal = false">取消</n-button>
+          <n-button type="primary" :loading="syncLoading" @click="handleSync">确认同步</n-button>
+        </n-space>
+      </template>
+    </n-modal>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import {
-  NButton, NModal, NForm, NFormItem, NInput,
-  NSelect, NSwitch, NSpace, useMessage, useDialog,
+  NButton, NModal, NForm, NFormItem, NInput, NSelect, NSwitch, NSpace,
+  NRadioGroup, NRadio, useMessage, useDialog,
 } from 'naive-ui'
 import CalculatorInput from '../components/CalculatorInput.vue'
 import type { SelectOption } from 'naive-ui'
@@ -171,13 +237,14 @@ import { useFinance } from '../composables/useFinance'
 import { useFormatter } from '../composables/useFormatter'
 import {
   BankOutlined, CreditCardOutlined, HomeOutlined, EditOutlined, DeleteOutlined,
-  MoneyCollectOutlined, StockOutlined, WalletOutlined, PlusOutlined,
+  MoneyCollectOutlined, StockOutlined, WalletOutlined, PlusOutlined, SyncOutlined,
 } from '@vicons/antd'
 import type { Account } from '@shared/types'
+import Decimal from 'decimal.js'
 
 const {
   assetAccounts, liabilityAccounts, totalAssets, totalLiabilities,
-  netWorth, investmentPerformance, addAccount, updateAccount, deleteAccount,
+  netWorth, investmentPerformance, addAccount, updateAccount, deleteAccount, syncBalance,
 } = useFinance()
 const { currencyPlain } = useFormatter()
 const message = useMessage()
@@ -216,6 +283,14 @@ function subTypeLabel(subType: string) {
   return map[subType] || subType
 }
 
+function formatDate(dateStr: string | null): string {
+  if (!dateStr) return '从未'
+  const d = new Date(dateStr)
+  const month = d.getMonth() + 1
+  const day = d.getDate()
+  return `${month}月${day}日`
+}
+
 function investmentReturn(accountId: number): number | null {
   const perf = investmentPerformance.value.find(p => p.account.id === accountId)
   if (!perf || perf.costBasis.eq(0)) return null
@@ -237,6 +312,21 @@ function debtProgress(account: Account): number {
   const balance = Number(account.balance)
   const paid = original - balance
   return Math.min(100, Math.max(0, Math.round((paid / original) * 100)))
+}
+
+// ---- Sync Mode Options ----
+const syncModeOptions: SelectOption[] = [
+  { label: '精确同步', value: 'exact' },
+  { label: '近似记账', value: 'approximate' },
+]
+
+async function handleSyncModeChange(account: Account, mode: string) {
+  try {
+    await updateAccount(account.id, { sync_mode: mode as 'exact' | 'approximate' })
+    message.success('记账模式已更新')
+  } catch {
+    message.error('更新失败')
+  }
 }
 
 // ---- Account Modal (Add / Edit) ----
@@ -317,6 +407,51 @@ function handleDelete(account: Account) {
     },
   })
 }
+
+// ---- Sync Balance Modal ----
+const showSyncModal = ref(false)
+const syncAccount = ref<Account | null>(null)
+const syncLoading = ref(false)
+const syncForm = ref({
+  new_balance: null as number | null,
+  diff_handling: 'expense' as 'expense' | 'income' | 'ignore',
+  note: '',
+})
+
+const syncDiff = computed(() => {
+  if (!syncAccount.value || syncForm.value.new_balance === null) return null
+  return new Decimal(syncForm.value.new_balance).minus(new Decimal(syncAccount.value.balance)).toNumber()
+})
+
+function openSync(account: Account) {
+  syncAccount.value = account
+  syncForm.value = {
+    new_balance: Number(account.balance),
+    diff_handling: 'expense',
+    note: '',
+  }
+  showSyncModal.value = true
+}
+
+async function handleSync() {
+  if (!syncAccount.value || syncForm.value.new_balance === null) return
+
+  syncLoading.value = true
+  try {
+    await syncBalance({
+      account_id: syncAccount.value.id,
+      new_balance: String(syncForm.value.new_balance),
+      diff_handling: syncForm.value.diff_handling,
+      note: syncForm.value.note,
+    })
+    message.success('余额已同步')
+    showSyncModal.value = false
+  } catch {
+    message.error('同步失败')
+  } finally {
+    syncLoading.value = false
+  }
+}
 </script>
 
 <style scoped>
@@ -336,8 +471,8 @@ function handleDelete(account: Account) {
   border-radius: 12px; padding: 10px 16px; min-width: 140px;
   backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
 }
-.pill--asset { border-left: 3px solid #36B37E; }
-.pill--liability { border-left: 3px solid #FF5630; }
+.pill--asset { border-left: 3px solid var(--color-profit); }
+.pill--liability { border-left: 3px solid var(--color-loss); }
 .pill-label { font-size: 12px; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.5px; }
 .pill-value { font-size: 20px; font-weight: 700; font-variant-numeric: tabular-nums; margin-top: 2px; color: var(--text-primary); }
 
@@ -371,17 +506,25 @@ function handleDelete(account: Account) {
 .account-type { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
 .account-balance { font-size: 18px; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
 
+/* Sync info */
+.account-sync-info { display: flex; align-items: center; gap: 8px; margin-top: 4px; }
+.sync-badge { font-size: 11px; padding: 2px 6px; border-radius: 4px; font-weight: 500; }
+.sync-badge--exact { background: rgba(76,154,255,0.12); color: #4C9AFF; }
+.sync-badge--approx { background: rgba(255,197,0,0.12); color: #FFC500; }
+.sync-time { font-size: 11px; color: var(--text-muted); }
+
 .card-detail { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--border-subtle); display: flex; flex-direction: column; gap: 8px; }
 .detail-row { display: flex; justify-content: space-between; align-items: center; font-size: 14px; }
 .detail-label { color: var(--text-muted); }
 .detail-value { color: var(--text-primary); display: flex; align-items: center; gap: 6px; }
 .detail-row.hint { color: var(--text-muted); font-style: italic; }
 .status-dot { width: 6px; height: 6px; border-radius: 50%; }
-.dot--active { background: #36B37E; box-shadow: 0 0 6px rgba(54,179,126,0.5); }
+.dot--active { background: var(--color-profit); box-shadow: 0 0 6px var(--color-profit); }
 .dot--inactive { background: var(--text-muted); }
 
-.text-green { color: #36B37E; }
-.text-red { color: #FF5630; }
+.text-green { color: var(--color-profit); }
+.text-red { color: var(--color-loss); }
+.text-bold { font-weight: 600; }
 
 .account-notes {
   font-size: 12px;
@@ -453,6 +596,20 @@ function handleDelete(account: Account) {
   color: var(--text-muted);
 }
 
+/* Sync Modal */
+.sync-modal-content { display: flex; flex-direction: column; gap: 16px; }
+.sync-account-info { padding: 12px; background: var(--bg-hover); border-radius: 8px; }
+.sync-account-name { font-size: 18px; font-weight: 600; color: var(--text-primary); margin-bottom: 4px; }
+.sync-account-current { font-size: 14px; color: var(--text-secondary); }
+.sync-diff-info { display: flex; align-items: center; gap: 8px; padding: 10px 12px; background: var(--bg-hover); border-radius: 8px; }
+.sync-diff-label { font-size: 14px; color: var(--text-secondary); }
+.sync-diff-value { font-size: 18px; font-weight: 700; font-variant-numeric: tabular-nums; }
+
 .expand-enter-active, .expand-leave-active { transition: all 0.3s ease; }
 .expand-enter-from, .expand-leave-to { opacity: 0; transform: translateY(-8px); }
+
+@media (max-width: 768px) {
+  .summary-pills { flex-wrap: wrap; }
+  .pill { min-width: 120px; }
+}
 </style>

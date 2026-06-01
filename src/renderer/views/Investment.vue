@@ -17,7 +17,7 @@
     <div class="invest-detail" v-for="perf in investmentPerformance" :key="perf.account.id">
       <div class="glass-card detail-header-card">
         <div class="detail-account-name">
-          <span class="dot" :style="{ background: perf.returnAmount.isNegative() ? '#FF5630' : '#36B37E' }" />
+          <span class="dot" :style="{ background: perf.returnAmount.isNegative() ? 'var(--color-loss)' : 'var(--color-profit)' }" />
           {{ perf.account.name }}
         </div>
         <div class="detail-metrics">
@@ -31,13 +31,13 @@
           </div>
           <div class="metric">
             <span class="metric-label">累计收益</span>
-            <span class="metric-value" :class="perf.returnAmount.isNegative() ? 'text-red' : 'text-green'">
+            <span class="metric-value" :class="perf.returnAmount.isNegative() ? 'text-loss' : 'text-profit'">
               {{ perf.returnAmount.isNegative() ? '' : '+' }}{{ currencyPlain(perf.returnAmount) }}
             </span>
           </div>
           <div class="metric">
             <span class="metric-label">收益率</span>
-            <span class="metric-value metric--highlight" :class="perf.returnRate.isNegative() ? 'text-red' : 'text-green'">
+            <span class="metric-value metric--highlight" :class="perf.returnRate.isNegative() ? 'text-loss' : 'text-profit'">
               {{ perf.returnRate.isNegative() ? '' : '+' }}{{ (perf.returnRate.toNumber() * 100).toFixed(2) }}%
             </span>
           </div>
@@ -114,8 +114,8 @@ const summaryCards = computed(() => {
   return [
     { label: '总市值', value: currencyPlain(totalValue), colorClass: '' },
     { label: '总成本', value: currencyPlain(totalCost), colorClass: '' },
-    { label: '累计收益', value: (totalReturn.isNegative() ? '' : '+') + currencyPlain(totalReturn), colorClass: totalReturn.isNegative() ? 'text-red' : 'text-green' },
-    { label: '总收益率', value: (totalRate.isNegative() ? '' : '+') + totalRate.mul(100).toFixed(2) + '%', colorClass: totalRate.isNegative() ? 'text-red' : 'text-green' },
+    { label: '累计收益', value: (totalReturn.isNegative() ? '' : '+') + currencyPlain(totalReturn), colorClass: totalReturn.isNegative() ? 'text-loss' : 'text-profit' },
+    { label: '总收益率', value: (totalRate.isNegative() ? '' : '+') + totalRate.mul(100).toFixed(2) + '%', colorClass: totalRate.isNegative() ? 'text-loss' : 'text-profit' },
   ]
 })
 
@@ -211,7 +211,7 @@ onUnmounted(() => {
 .chart-container { width: 100%; height: clamp(280px, 24vh, 440px); min-height: 200px; }
 .snapshot-table-card { display: flex; flex-direction: column; gap: 12px; }
 
-.text-green { color: #36B37E; }
-.text-red { color: #FF5630; }
+.text-green { color: var(--color-profit); }
+.text-red { color: var(--color-loss); }
 .empty-state { text-align: center; padding: 48px; color: var(--text-muted); }
 </style>

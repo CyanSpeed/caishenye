@@ -168,6 +168,20 @@
             </div>
             <n-switch v-model:value="settings.chartAnimation" />
           </div>
+
+          <div class="setting-item">
+            <div class="setting-label">
+              <span class="label-text">涨跌配色</span>
+              <span class="label-desc">设置盈利/亏损的显示颜色</span>
+            </div>
+            <n-select
+              :value="colorMode"
+              :options="colorModeOptions"
+              placeholder="选择配色"
+              style="width: 200px"
+              @update:value="handleColorModeChange"
+            />
+          </div>
         </div>
       </div>
 
@@ -222,8 +236,20 @@ import {
   InfoCircleOutlined,
 } from '@vicons/antd'
 import type { FamilyInfo } from '@shared/types'
+import { useColorMode } from '../composables/useColorMode'
+import type { ColorMode } from '../composables/useColorMode'
 
 const message = useMessage()
+const { colorMode, setColorMode } = useColorMode()
+
+const colorModeOptions = [
+  { label: '🔴 红涨绿跌（中国惯例）', value: 'cn' },
+  { label: '🟢 绿涨红跌（国际惯例）', value: 'west' },
+]
+
+function handleColorModeChange(val: ColorMode) {
+  setColorMode(val)
+}
 
 // 家庭信息
 const familyInfo = reactive<FamilyInfo>({
