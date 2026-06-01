@@ -85,8 +85,83 @@
       <div class="glass-card list-card">
         <div class="list-header">
           <span class="card-title">交易记录</span>
-          <n-input v-model:value="searchQuery" placeholder="搜索..." clearable size="small" :style="{ width: '200px' }" />
+          <n-button size="small" @click="showFilters = !showFilters">
+            <template #icon><SearchOutlined /></template>
+            {{ showFilters ? '收起筛选' : '展开筛选' }}
+          </n-button>
         </div>
+
+        <!-- 搜索筛选面板 -->
+        <div v-if="showFilters" class="filter-panel">
+          <div class="filter-row">
+            <n-input
+              v-model:value="filters.keyword"
+              placeholder="搜索描述/备注..."
+              clearable
+              size="small"
+            >
+              <template #prefix><SearchOutlined /></template>
+            </n-input>
+          </div>
+          <div class="filter-row">
+            <n-select
+              v-model:value="filters.type"
+              :options="filterTypeOptions"
+              placeholder="交易类型"
+              clearable
+              size="small"
+            />
+            <n-select
+              v-model:value="filters.category_id"
+              :options="filterCategoryOptions"
+              placeholder="分类"
+              clearable
+              size="small"
+              :disabled="filters.type === 'transfer'"
+            />
+          </div>
+          <div class="filter-row">
+            <n-select
+              v-model:value="filters.account_id"
+              :options="accountOptions"
+              placeholder="账户"
+              clearable
+              size="small"
+            />
+            <n-date-picker
+              v-model:formatted-value="filters.dateRange"
+              type="daterange"
+              clearable
+              size="small"
+              :style="{ width: '100%' }"
+            />
+          </div>
+          <div class="filter-row">
+            <n-input-number
+              v-model:value="filters.amountMin"
+              placeholder="最小金额"
+              clearable
+              size="small"
+              :min="0"
+            >
+              <template #prefix>¥</template>
+            </n-input-number>
+            <n-input-number
+              v-model:value="filters.amountMax"
+              placeholder="最大金额"
+              clearable
+              size="small"
+              :min="0"
+            >
+              <template #prefix>¥</template>
+            </n-input-number>
+          </div>
+          <div class="filter-actions">
+            <n-button size="small" @click="resetFilters">重置筛选</n-button>
+            <span class="filter-count">共 {{ filteredTransactions.length }} 条记录</span>
+          </div>
+        </div>
+
         <n-data-table
           :columns="columns"
           :data="filteredTransactions"
@@ -94,36 +169,122 @@
           :single-line="false"
           size="small"
           virtual-scroll
-          max-height="calc(100vh - 300px)"
+          max-height="calc(100vh - 400px)"
         />
       </div>
     </div>
+
+    <!-- 编辑交易模态框 -->
+    <n-modal
+      v-model:show="showEditModal"
+      title="修改交易记录"
+      preset="card"
+      :style="{ width: '480px' }"
+      :segmented="{ content: true, footer: true }"
+    >
+      <n-form ref="editFormRef" :model="editForm" :rules="editRules" label-placement="top">
+        <n-form-item label="交易类型" path="type">
+          <div class="type-toggle">
+            <button
+              v-for="opt in typeOptions"
+              :key="opt.value"
+              class="type-btn"
+              :class="{ active: editForm.type === opt.value }"
+              @click="editForm.type = opt.value"
+            >
+              <component :is="opt.icon" :size="16" />
+              {{ opt.label }}
+            </button>
+          </div>
+        </n-form-item>
+
+        <n-form-item label="金额" path="amount">
+          <CalculatorInput
+            v-model:value="editForm.amount"
+            :min="0.01"
+            :step="100"
+            placeholder="0.00"
+          >
+            <template #prefix>¥</template>
+          </CalculatorInput>
+        </n-form-item>
+
+        <n-form-item label="分类" path="category_id" v-if="editForm.type !== 'transfer'">
+          <n-select
+            v-model:value="editForm.category_id"
+            :options="editCategoryOptions"
+            placeholder="选择分类"
+          />
+        </n-form-item>
+
+        <n-form-item label="账户" path="from_account_id">
+          <n-select
+            v-model:value="editForm.from_account_id"
+            :options="accountOptions"
+            placeholder="选择账户"
+          />
+        </n-form-item>
+
+        <n-form-item label="目标账户" path="to_account_id" v-if="editForm.type === 'transfer'">
+          <n-select
+            v-model:value="editForm.to_account_id"
+            :options="accountOptions"
+            placeholder="选择目标账户"
+          />
+        </n-form-item>
+
+        <n-form-item label="日期" path="date">
+          <n-date-picker v-model:formatted-value="editForm.date" type="date" :style="{ width: '100%' }" />
+        </n-form-item>
+
+        <n-form-item label="备注" path="description">
+          <n-input v-model:value="editForm.description" placeholder="添加备注..." maxlength="100" show-count />
+        </n-form-item>
+      </n-form>
+      <template #footer>
+        <div style="display: flex; justify-content: flex-end; gap: 12px;">
+          <n-button @click="showEditModal = false">取消</n-button>
+          <n-button type="primary" :loading="editSubmitting" @click="handleEditSubmit">保存修改</n-button>
+        </div>
+      </template>
+    </n-modal>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, h } from 'vue'
 import {
-  NForm, NFormItem, NSelect, NDatePicker, NInput,
-  NButton, NDataTable, NPopconfirm, useMessage,
+  NForm, NFormItem, NSelect, NDatePicker, NInput, NInputNumber,
+  NButton, NDataTable, NPopconfirm, NModal, useMessage,
 } from 'naive-ui'
 import CalculatorInput from '../components/CalculatorInput.vue'
 import type { DataTableColumn } from 'naive-ui'
-import { PlusOutlined, ArrowUpOutlined, ArrowDownOutlined, SwapOutlined, DeleteOutlined } from '@vicons/antd'
+import {
+  PlusOutlined, ArrowUpOutlined, ArrowDownOutlined, SwapOutlined,
+  DeleteOutlined, EditOutlined, SearchOutlined,
+} from '@vicons/antd'
 import { useFinance } from '../composables/useFinance'
 import { useFormatter } from '../composables/useFormatter'
-import type { TransactionType } from '@shared/types'
+import type { TransactionType, Transaction } from '@shared/types'
 
-const { sortedTransactions, expenseCategories, incomeCategories, assetAccounts, getAccountById, getCategoryById, addTransaction, deleteTransaction } = useFinance()
+const {
+  sortedTransactions, expenseCategories, incomeCategories, assetAccounts,
+  getAccountById, getCategoryById, addTransaction, updateTransaction, deleteTransaction,
+} = useFinance()
 const { currencyPlain, shortDate } = useFormatter()
 const message = useMessage()
 
 const formRef = ref()
+const editFormRef = ref()
 const submitting = ref(false)
-const searchQuery = ref('')
+const editSubmitting = ref(false)
+const showFilters = ref(false)
+const showEditModal = ref(false)
+const editingId = ref<number | null>(null)
 
 const today = new Date().toISOString().slice(0, 10)
 
+// ===== 新增表单 =====
 const form = ref({
   type: 'expense' as TransactionType,
   amount: null as number | null,
@@ -141,10 +302,46 @@ const rules = {
   category_id: [{ required: true, message: '请选择分类', trigger: 'change', type: 'number' }],
 }
 
+// ===== 编辑表单 =====
+const editForm = ref({
+  type: 'expense' as TransactionType,
+  amount: null as number | null,
+  category_id: null as number | null,
+  from_account_id: null as number | null,
+  to_account_id: null as number | null,
+  date: today,
+  description: '',
+})
+
+const editRules = {
+  amount: [{ required: true, message: '请输入金额', trigger: 'blur', type: 'number', min: 0.01 }],
+  from_account_id: [{ required: true, message: '请选择账户', trigger: 'change', type: 'number' }],
+  to_account_id: [{ required: true, message: '请选择目标账户', trigger: 'change', type: 'number' }],
+  category_id: [{ required: true, message: '请选择分类', trigger: 'change', type: 'number' }],
+}
+
+// ===== 筛选条件 =====
+const filters = ref({
+  keyword: '',
+  type: null as TransactionType | null,
+  category_id: null as number | null,
+  account_id: null as number | null,
+  dateRange: null as [string, string] | null,
+  amountMin: null as number | null,
+  amountMax: null as number | null,
+})
+
+// ===== 选项 =====
 const typeOptions = [
   { value: 'expense' as const, label: '支出', icon: ArrowDownOutlined },
   { value: 'income' as const, label: '收入', icon: ArrowUpOutlined },
   { value: 'transfer' as const, label: '转账', icon: SwapOutlined },
+]
+
+const filterTypeOptions = [
+  { label: '支出', value: 'expense' },
+  { label: '收入', value: 'income' },
+  { label: '转账', value: 'transfer' },
 ]
 
 const accountOptions = computed(() =>
@@ -156,6 +353,17 @@ const categoryOptions = computed(() => {
   return cats.map(c => ({ label: c.name, value: c.id }))
 })
 
+const editCategoryOptions = computed(() => {
+  const cats = editForm.value.type === 'income' ? incomeCategories.value : expenseCategories.value
+  return cats.map(c => ({ label: c.name, value: c.id }))
+})
+
+const filterCategoryOptions = computed(() => {
+  const allCats = [...expenseCategories.value, ...incomeCategories.value]
+  return allCats.map(c => ({ label: `${c.type === 'income' ? '收入' : '支出'} - ${c.name}`, value: c.id }))
+})
+
+// ===== 表格列定义 =====
 const columns: DataTableColumn[] = [
   {
     title: '日期', key: 'date', width: 90,
@@ -186,18 +394,86 @@ const columns: DataTableColumn[] = [
     },
   },
   {
-    title: '', key: 'actions', width: 48, align: 'center',
-    render: (row: any) => h(
-      NPopconfirm,
-      { onPositiveClick: () => handleDelete(row.id) },
-      {
-        trigger: () => h(NButton, { text: true, size: 'small', type: 'error' }, { icon: () => h(DeleteOutlined) }),
-        default: () => '确定删除这笔记录？',
-      }
-    ),
+    title: '', key: 'actions', width: 80, align: 'center',
+    render: (row: any) => h('div', { style: { display: 'flex', gap: '4px', justifyContent: 'center' } }, [
+      h(NButton, {
+        text: true, size: 'small', type: 'primary',
+        onClick: () => handleEdit(row),
+      }, { icon: () => h(EditOutlined) }),
+      h(
+        NPopconfirm,
+        { onPositiveClick: () => handleDelete(row.id) },
+        {
+          trigger: () => h(NButton, { text: true, size: 'small', type: 'error' }, { icon: () => h(DeleteOutlined) }),
+          default: () => '确定删除这笔记录？',
+        }
+      ),
+    ]),
   },
 ]
 
+// ===== 筛选逻辑 =====
+const filteredTransactions = computed(() => {
+  let result = sortedTransactions.value
+
+  // 关键词搜索
+  const q = filters.value.keyword?.trim().toLowerCase()
+  if (q) {
+    result = result.filter(t => {
+      const desc = (t.description || '').toLowerCase()
+      const catName = (getCategoryById(t.category_id ?? 0)?.name || '').toLowerCase()
+      const acctName = (getAccountById(t.from_account_id ?? 0)?.name || '').toLowerCase()
+      return desc.includes(q) || catName.includes(q) || acctName.includes(q)
+    })
+  }
+
+  // 类型筛选
+  if (filters.value.type) {
+    result = result.filter(t => t.type === filters.value.type)
+  }
+
+  // 分类筛选
+  if (filters.value.category_id) {
+    result = result.filter(t => t.category_id === filters.value.category_id)
+  }
+
+  // 账户筛选
+  if (filters.value.account_id) {
+    result = result.filter(t =>
+      t.from_account_id === filters.value.account_id || t.to_account_id === filters.value.account_id
+    )
+  }
+
+  // 日期范围筛选
+  if (filters.value.dateRange && filters.value.dateRange[0] && filters.value.dateRange[1]) {
+    const [start, end] = filters.value.dateRange
+    result = result.filter(t => t.date >= start && t.date <= end)
+  }
+
+  // 金额范围筛选
+  if (filters.value.amountMin !== null && filters.value.amountMin !== undefined) {
+    result = result.filter(t => Number(t.amount) >= filters.value.amountMin!)
+  }
+  if (filters.value.amountMax !== null && filters.value.amountMax !== undefined) {
+    result = result.filter(t => Number(t.amount) <= filters.value.amountMax!)
+  }
+
+  return result
+})
+
+function resetFilters() {
+  filters.value = {
+    keyword: '',
+    type: null,
+    category_id: null,
+    account_id: null,
+    dateRange: null,
+    amountMin: null,
+    amountMax: null,
+  }
+}
+
+// ===== 操作处理 =====
 async function handleDelete(id: number) {
   try {
     await deleteTransaction(id)
@@ -207,16 +483,46 @@ async function handleDelete(id: number) {
   }
 }
 
-const filteredTransactions = computed(() => {
-  const q = searchQuery.value.trim().toLowerCase()
-  if (!q) return sortedTransactions.value
-  return sortedTransactions.value.filter(t => {
-    const desc = (t.description || '').toLowerCase()
-    const catName = (getCategoryById(t.category_id ?? 0)?.name || '').toLowerCase()
-    const acctName = (getAccountById(t.from_account_id ?? 0)?.name || '').toLowerCase()
-    return desc.includes(q) || catName.includes(q) || acctName.includes(q)
+function handleEdit(row: Transaction) {
+  editingId.value = row.id
+  editForm.value = {
+    type: row.type,
+    amount: Number(row.amount),
+    category_id: row.category_id,
+    from_account_id: row.from_account_id,
+    to_account_id: row.to_account_id,
+    date: row.date,
+    description: row.description || '',
+  }
+  showEditModal.value = true
+}
+
+async function handleEditSubmit() {
+  if (!editingId.value) return
+
+  editFormRef.value?.validate(async (errors: any) => {
+    if (errors) return
+    editSubmitting.value = true
+    try {
+      await updateTransaction(editingId.value, {
+        date: editForm.value.date,
+        type: editForm.value.type,
+        amount: String(editForm.value.amount ?? 0),
+        from_account_id: editForm.value.from_account_id,
+        to_account_id: editForm.value.to_account_id,
+        category_id: editForm.value.type === 'transfer' ? null : editForm.value.category_id,
+        description: editForm.value.description,
+      })
+      message.success('修改成功')
+      showEditModal.value = false
+      editingId.value = null
+    } catch {
+      message.error('修改失败')
+    } finally {
+      editSubmitting.value = false
+    }
   })
-})
+}
 
 async function handleSubmit() {
   formRef.value?.validate(async (errors: any) => {
@@ -259,18 +565,49 @@ async function handleSubmit() {
 .list-header { display: flex; justify-content: space-between; align-items: center; }
 .card-title { font-size: 15px; font-weight: 600; color: var(--text-primary); }
 
-.type-toggle { display: flex; gap: 6px; width: 360px;}
+.type-toggle { display: flex; gap: 6px; width: 100%; }
 .type-btn {
   flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px;
-  padding: 8px 12px; border-radius: 8px;
-  width: 48px;
+  padding: 8px 16px; border-radius: 8px;
   border: 1px solid var(--border-card);
   background: var(--bg-card); color: var(--text-secondary);
   font-size: 13px; cursor: pointer; transition: all 0.2s ease;
+  white-space: nowrap;
 }
 .type-btn:hover { border-color: var(--border-card-hover); color: var(--text-primary); }
 .type-btn.active { background: rgba(76,154,255,0.12); border-color: rgba(76,154,255,0.3); color: #4C9AFF; }
 .form-actions { margin-top: 8px; }
 
-@media (max-width: 900px) { .tx-layout { grid-template-columns: 1fr; } .form-card { position: static; } }
+/* 筛选面板样式 */
+.filter-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  background: var(--bg-hover);
+  border-radius: 8px;
+  border: 1px solid var(--border-card);
+}
+.filter-row {
+  display: flex;
+  gap: 10px;
+}
+.filter-row > * {
+  flex: 1;
+}
+.filter-actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.filter-count {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+@media (max-width: 900px) {
+  .tx-layout { grid-template-columns: 1fr; }
+  .form-card { position: static; }
+  .filter-row { flex-direction: column; }
+}
 </style>

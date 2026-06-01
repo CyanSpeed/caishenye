@@ -10,6 +10,8 @@ const api = {
   addAccount: (account: any) => ipcRenderer.invoke(IPC_CHANNELS.ADD_ACCOUNT, account),
   updateAccount: (id: number, updates: any) => ipcRenderer.invoke(IPC_CHANNELS.UPDATE_ACCOUNT, id, updates),
   deleteAccount: (id: number) => ipcRenderer.invoke(IPC_CHANNELS.DELETE_ACCOUNT, id),
+  syncBalance: (params: any) => ipcRenderer.invoke(IPC_CHANNELS.SYNC_BALANCE, params),
+  getBalanceSnapshots: (accountId: number) => ipcRenderer.invoke(IPC_CHANNELS.GET_BALANCE_SNAPSHOTS, accountId),
 
   // Categories
   getCategories: () => ipcRenderer.invoke(IPC_CHANNELS.GET_CATEGORIES),

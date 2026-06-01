@@ -3,6 +3,8 @@
 export type AccountType = 'asset' | 'liability'
 export type AccountSubType = 'cash' | 'bank' | 'investment' | 'loan' | 'credit'
 
+export type AccountSyncMode = 'exact' | 'approximate' // exact=精确同步, approximate=近似记账
+
 export interface Account {
   id: number
   name: string
@@ -13,6 +15,19 @@ export interface Account {
   is_active: boolean
   notes: string
   original_amount: string // 负债的原始总金额，仅负债类型使用
+  sync_mode: AccountSyncMode // 账户同步模式
+  last_synced_at: string | null // 上次同步时间
+}
+
+export interface BalanceSnapshot {
+  id: number
+  account_id: number
+  date: string // YYYY-MM-DD HH:mm:ss
+  old_balance: string
+  new_balance: string
+  diff: string // 差额 = new - old
+  diff_handling: 'expense' | 'income' | 'ignore' // 差额处理方式
+  note: string
 }
 
 export type TransactionType = 'expense' | 'income' | 'transfer'
@@ -131,6 +146,7 @@ export interface QuarterlyReportData {
     quarterLabel: string
     dateRange: string
     generatedAt: string
+    dataNote: string
   }
   summary: {
     totalAssets: number
@@ -200,9 +216,12 @@ export const IPC_CHANNELS = {
   ADD_ACCOUNT: 'add-account',
   UPDATE_ACCOUNT: 'update-account',
   DELETE_ACCOUNT: 'delete-account',
+  SYNC_BALANCE: 'sync-balance',
+  GET_BALANCE_SNAPSHOTS: 'get-balance-snapshots',
   // Transactions
   GET_TRANSACTIONS: 'get-transactions',
   ADD_TRANSACTION: 'add-transaction',
+  UPDATE_TRANSACTION: 'update-transaction',
   DELETE_TRANSACTION: 'delete-transaction',
   // Categories
   GET_CATEGORIES: 'get-categories',

@@ -99,6 +99,18 @@ function createTables(db: Database.Database) {
       notes TEXT DEFAULT '',
       status TEXT NOT NULL DEFAULT '使用中' CHECK(status IN ('使用中', '已出售', '已报废'))
     );
+
+    CREATE TABLE IF NOT EXISTS balance_snapshots (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      account_id INTEGER NOT NULL,
+      date TEXT NOT NULL,
+      old_balance TEXT NOT NULL,
+      new_balance TEXT NOT NULL,
+      diff TEXT NOT NULL,
+      diff_handling TEXT NOT NULL DEFAULT 'ignore' CHECK(diff_handling IN ('expense', 'income', 'ignore')),
+      note TEXT DEFAULT '',
+      FOREIGN KEY (account_id) REFERENCES accounts(id)
+    );
   `)
 }
 
@@ -113,6 +125,8 @@ function migrateDatabase(db: Database.Database) {
   }
   addColumnIfNotExists('accounts', 'notes', "TEXT DEFAULT ''")
   addColumnIfNotExists('accounts', 'original_amount', "TEXT DEFAULT ''")
+  addColumnIfNotExists('accounts', 'sync_mode', "TEXT DEFAULT 'approximate'")
+  addColumnIfNotExists('accounts', 'last_synced_at', "TEXT DEFAULT NULL")
   addColumnIfNotExists('categories', 'expense_nature', "TEXT DEFAULT ''")
   addColumnIfNotExists('categories', 'cashflow_type', "TEXT DEFAULT 'operating'")
 
@@ -145,6 +159,16 @@ function migrateDatabase(db: Database.Database) {
   } catch {
     // 迁移已执行或表不存在，忽略
   }
+
+  // 迁移：添加新的收入分类
+  const insertCategoryIfNotExists = (id: number, name: string, type: string, icon: string, expenseNature: string, cashflowType: string) => {
+    const exists = db.prepare('SELECT id FROM categories WHERE id = ?').get(id)
+    if (!exists) {
+      db.prepare('INSERT INTO categories (id, name, type, icon, expense_nature, cashflow_type) VALUES (?, ?, ?, ?, ?, ?)').run(id, name, type, icon, expenseNature, cashflowType)
+    }
+  }
+  insertCategoryIfNotExists(18, '公积金提取', 'income', 'bank', '', 'financing')
+  insertCategoryIfNotExists(19, '奖金', 'income', 'trophy', '', 'operating')
 }
 
 function seedIfEmpty(db: Database.Database) {
@@ -152,8 +176,8 @@ function seedIfEmpty(db: Database.Database) {
   if (count.cnt > 0) return
 
   const seedAccounts = db.prepare(`
-    INSERT INTO accounts (id, name, type, sub_type, balance, currency, is_active, notes, original_amount)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO accounts (id, name, type, sub_type, balance, currency, is_active, notes, original_amount, sync_mode, last_synced_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `)
   const seedCategories = db.prepare(`
     INSERT INTO categories (id, name, type, icon, expense_nature, cashflow_type) VALUES (?, ?, ?, ?, ?, ?)
@@ -179,20 +203,20 @@ function seedIfEmpty(db: Database.Database) {
 
   const insertAll = db.transaction(() => {
     // ========== Accounts ==========
-    // 资产账户
-    seedAccounts.run(1, '现金钱包', 'asset', 'cash', '5000.00', 'CNY', 1, '日常现金备用', '')
-    seedAccounts.run(2, '招商银行储蓄卡', 'asset', 'bank', '156800.50', 'CNY', 1, '主工资卡，每月工资入账', '')
-    seedAccounts.run(3, '工商银行工资卡', 'asset', 'bank', '42300.00', 'CNY', 1, '副卡，理财专用', '')
-    seedAccounts.run(4, '支付宝余额', 'asset', 'cash', '8520.75', 'CNY', 1, '日常消费主力', '')
-    seedAccounts.run(5, '微信零钱', 'asset', 'cash', '1230.00', 'CNY', 1, '社交红包和小额支付', '')
-    seedAccounts.run(6, '华泰证券股票账户', 'asset', 'investment', '285000.00', 'CNY', 1, 'A股投资，长期持有为主', '')
-    seedAccounts.run(7, '易方达基金账户', 'asset', 'investment', '120000.00', 'CNY', 1, '定投指数基金', '')
-    seedAccounts.run(8, '建设银行定期存款', 'asset', 'investment', '200000.00', 'CNY', 1, '3年期定期，2027年到期', '')
-    // 负债账户
-    seedAccounts.run(9, '房贷账户', 'liability', 'loan', '1200000.00', 'CNY', 1, '2023年购房贷款，30年期，月供6500', '1500000.00')
-    seedAccounts.run(10, '车贷账户', 'liability', 'loan', '85000.00', 'CNY', 1, '比亚迪汉EV车贷，3年期', '120000.00')
-    seedAccounts.run(11, '招商银行信用卡', 'liability', 'credit', '12500.00', 'CNY', 1, '每月10日还款，额度5万', '12500.00')
-    seedAccounts.run(12, '花呗', 'liability', 'credit', '3200.00', 'CNY', 1, '每月20日自动还款', '3200.00')
+    // 资产账户 - exact=精确同步(银行/投资), approximate=近似记账(现金/电子钱包)
+    seedAccounts.run(1, '现金钱包', 'asset', 'cash', '5000.00', 'CNY', 1, '日常现金备用', '', 'approximate', null)
+    seedAccounts.run(2, '招商银行储蓄卡', 'asset', 'bank', '156800.50', 'CNY', 1, '主工资卡，每月工资入账', '', 'exact', '2026-06-01')
+    seedAccounts.run(3, '工商银行工资卡', 'asset', 'bank', '42300.00', 'CNY', 1, '副卡，理财专用', '', 'exact', '2026-06-01')
+    seedAccounts.run(4, '支付宝余额', 'asset', 'cash', '8520.75', 'CNY', 1, '日常消费主力', '', 'approximate', null)
+    seedAccounts.run(5, '微信零钱', 'asset', 'cash', '1230.00', 'CNY', 1, '社交红包和小额支付', '', 'approximate', null)
+    seedAccounts.run(6, '华泰证券股票账户', 'asset', 'investment', '285000.00', 'CNY', 1, 'A股投资，长期持有为主', '', 'exact', '2026-06-01')
+    seedAccounts.run(7, '易方达基金账户', 'asset', 'investment', '120000.00', 'CNY', 1, '定投指数基金', '', 'exact', '2026-06-01')
+    seedAccounts.run(8, '建设银行定期存款', 'asset', 'investment', '200000.00', 'CNY', 1, '3年期定期，2027年到期', '', 'exact', '2026-06-01')
+    // 负债账户 - 负债都是精确同步
+    seedAccounts.run(9, '房贷账户', 'liability', 'loan', '1200000.00', 'CNY', 1, '2023年购房贷款，30年期，月供6500', '1500000.00', 'exact', '2026-06-01')
+    seedAccounts.run(10, '车贷账户', 'liability', 'loan', '85000.00', 'CNY', 1, '比亚迪汉EV车贷，3年期', '120000.00', 'exact', '2026-06-01')
+    seedAccounts.run(11, '招商银行信用卡', 'liability', 'credit', '12500.00', 'CNY', 1, '每月10日还款，额度5万', '12500.00', 'exact', '2026-06-01')
+    seedAccounts.run(12, '花呗', 'liability', 'credit', '3200.00', 'CNY', 1, '每月20日自动还款', '3200.00', 'exact', '2026-06-01')
 
     // ========== Categories ==========
     // 支出分类
@@ -214,6 +238,8 @@ function seedIfEmpty(db: Database.Database) {
     seedCategories.run(15, '兼职收入', 'income', 'briefcase', '', 'operating')
     seedCategories.run(16, '利息收入', 'income', 'percent', '', 'investing')
     seedCategories.run(17, '其他收入', 'income', 'gift', '', 'operating')
+    seedCategories.run(18, '公积金提取', 'income', 'bank', '', 'financing')
+    seedCategories.run(19, '奖金', 'income', 'trophy', '', 'operating')
 
     // ========== Settings ==========
     seedSettings.run('family_info', JSON.stringify({

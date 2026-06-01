@@ -4,6 +4,7 @@ import type {
   Account, Transaction, InvestmentSnapshot, Category, PhysicalAsset,
   Settings, NetWorthSnapshot, FamilyInfo, QuarterlyReportData,
   BalanceSheetItem, IncomeExpenseItem, CashFlowItem, KPIData,
+  BalanceSnapshot,
 } from '@shared/types'
 
 // ===== Accounts =====
@@ -44,6 +45,97 @@ export function deleteAccount(id: number): void {
   db.prepare('DELETE FROM accounts WHERE id = ?').run(id)
 }
 
+// ===== Balance Sync =====
+
+export interface SyncBalanceParams {
+  account_id: number
+  new_balance: string
+  diff_handling: 'expense' | 'income' | 'ignore'
+  note?: string
+}
+
+export function syncBalance(params: SyncBalanceParams): { account: Account; snapshot: BalanceSnapshot } {
+  const db = getDatabase()
+
+  const syncInTransaction = db.transaction(() => {
+    // 获取账户当前余额
+    const account = db.prepare('SELECT * FROM accounts WHERE id = ?').get(params.account_id) as any
+    if (!account) throw new Error('Account not found')
+
+    const oldBalance = account.balance
+    const newBalance = params.new_balance
+    const diff = new Decimal(newBalance).minus(new Decimal(oldBalance)).toFixed(2)
+
+    // 更新账户余额和同步时间
+    const now = new Date().toISOString().replace('T', ' ').slice(0, 19)
+    db.prepare('UPDATE accounts SET balance = ?, last_synced_at = ? WHERE id = ?').run(newBalance, now, params.account_id)
+
+    // 记录快照
+    const snapshotResult = db.prepare(
+      'INSERT INTO balance_snapshots (account_id, date, old_balance, new_balance, diff, diff_handling, note) VALUES (?, ?, ?, ?, ?, ?, ?)'
+    ).run(
+      params.account_id,
+      now,
+      oldBalance,
+      newBalance,
+      diff,
+      params.diff_handling,
+      params.note || ''
+    )
+
+    // 如果差额需要记为收入或支出，创建交易记录
+    if (params.diff_handling !== 'ignore' && diff !== '0.00') {
+      const absDiff = new Decimal(diff).abs().toFixed(2)
+      const txType = params.diff_handling === 'income' ? 'income' : 'expense'
+
+      // 根据账户类型决定 from_account_id 或 to_account_id
+      if (account.type === 'asset') {
+        if (txType === 'income') {
+          db.prepare(
+            'INSERT INTO transactions (date, type, amount, from_account_id, to_account_id, category_id, description, tags) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+          ).run(now.slice(0, 10), 'income', absDiff, null, params.account_id, null, params.note || '余额同步差额', '["余额同步"]')
+        } else {
+          db.prepare(
+            'INSERT INTO transactions (date, type, amount, from_account_id, to_account_id, category_id, description, tags) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+          ).run(now.slice(0, 10), 'expense', absDiff, params.account_id, null, null, params.note || '余额同步差额', '["余额同步"]')
+        }
+      } else {
+        // 负债账户
+        if (txType === 'income') {
+          db.prepare(
+            'INSERT INTO transactions (date, type, amount, from_account_id, to_account_id, category_id, description, tags) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+          ).run(now.slice(0, 10), 'income', absDiff, null, null, null, params.note || '余额同步差额', '["余额同步"]')
+        } else {
+          db.prepare(
+            'INSERT INTO transactions (date, type, amount, from_account_id, to_account_id, category_id, description, tags) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+          ).run(now.slice(0, 10), 'expense', absDiff, null, null, null, params.note || '余额同步差额', '["余额同步"]')
+        }
+      }
+    }
+
+    return {
+      account: { ...account, balance: newBalance, last_synced_at: now, is_active: !!account.is_active },
+      snapshot: {
+        id: Number(snapshotResult.lastInsertRowid),
+        account_id: params.account_id,
+        date: now,
+        old_balance: oldBalance,
+        new_balance: newBalance,
+        diff,
+        diff_handling: params.diff_handling,
+        note: params.note || '',
+      }
+    }
+  })
+
+  return syncInTransaction()
+}
+
+export function getBalanceSnapshots(accountId: number): BalanceSnapshot[] {
+  const db = getDatabase()
+  return db.prepare('SELECT * FROM balance_snapshots WHERE account_id = ? ORDER BY date DESC').all(accountId) as BalanceSnapshot[]
+}
+
 // ===== Categories =====
 
 export function getAllCategories(): Category[] {
@@ -58,6 +150,13 @@ export function getAllTransactions(): Transaction[] {
   return db.prepare('SELECT * FROM transactions ORDER BY date DESC, id DESC').all() as Transaction[]
 }
 
+/** 检查账户是否为精确同步模式（需要自动更新余额） */
+function isExactSync(db: Database.Database, accountId: number | null | undefined): boolean {
+  if (!accountId) return false
+  const account = db.prepare('SELECT sync_mode FROM accounts WHERE id = ?').get(accountId) as { sync_mode: string } | undefined
+  return account?.sync_mode === 'exact'
+}
+
 export function addTransaction(tx: Omit<Transaction, 'id'>): Transaction {
   const db = getDatabase()
 
@@ -68,27 +167,27 @@ export function addTransaction(tx: Omit<Transaction, 'id'>): Transaction {
 
     const amount = new Decimal(tx.amount)
 
-    // Update account balances
-    if (tx.type === 'expense' && tx.from_account_id) {
+    // 仅精确同步的账户才自动更新余额
+    if (tx.type === 'expense' && tx.from_account_id && isExactSync(db, tx.from_account_id)) {
       const account = db.prepare('SELECT balance FROM accounts WHERE id = ?').get(tx.from_account_id) as { balance: string } | undefined
       if (account) {
         const newBalance = new Decimal(account.balance).minus(amount).toFixed(2)
         db.prepare('UPDATE accounts SET balance = ? WHERE id = ?').run(newBalance, tx.from_account_id)
       }
-    } else if (tx.type === 'income' && tx.to_account_id) {
+    } else if (tx.type === 'income' && tx.to_account_id && isExactSync(db, tx.to_account_id)) {
       const account = db.prepare('SELECT balance FROM accounts WHERE id = ?').get(tx.to_account_id) as { balance: string } | undefined
       if (account) {
         const newBalance = new Decimal(account.balance).plus(amount).toFixed(2)
         db.prepare('UPDATE accounts SET balance = ? WHERE id = ?').run(newBalance, tx.to_account_id)
       }
     } else if (tx.type === 'transfer') {
-      if (tx.from_account_id) {
+      if (tx.from_account_id && isExactSync(db, tx.from_account_id)) {
         const from = db.prepare('SELECT balance FROM accounts WHERE id = ?').get(tx.from_account_id) as { balance: string } | undefined
         if (from) {
           db.prepare('UPDATE accounts SET balance = ? WHERE id = ?').run(new Decimal(from.balance).minus(amount).toFixed(2), tx.from_account_id)
         }
       }
-      if (tx.to_account_id) {
+      if (tx.to_account_id && isExactSync(db, tx.to_account_id)) {
         const to = db.prepare('SELECT balance FROM accounts WHERE id = ?').get(tx.to_account_id) as { balance: string } | undefined
         if (to) {
           db.prepare('UPDATE accounts SET balance = ? WHERE id = ?').run(new Decimal(to.balance).plus(amount).toFixed(2), tx.to_account_id)
@@ -102,6 +201,95 @@ export function addTransaction(tx: Omit<Transaction, 'id'>): Transaction {
   return insertAndBalance()
 }
 
+export function updateTransaction(id: number, updates: Partial<Transaction>): Transaction {
+  const db = getDatabase()
+
+  const updateAndRebalance = db.transaction(() => {
+    // 获取原始交易
+    const oldTx = db.prepare('SELECT * FROM transactions WHERE id = ?').get(id) as Transaction | undefined
+    if (!oldTx) throw new Error('Transaction not found')
+
+    const oldAmount = new Decimal(oldTx.amount)
+
+    // 撤销原交易的余额影响（仅精确同步账户）
+    if (oldTx.type === 'expense' && oldTx.from_account_id && isExactSync(db, oldTx.from_account_id)) {
+      const account = db.prepare('SELECT balance FROM accounts WHERE id = ?').get(oldTx.from_account_id) as { balance: string } | undefined
+      if (account) {
+        db.prepare('UPDATE accounts SET balance = ? WHERE id = ?').run(new Decimal(account.balance).plus(oldAmount).toFixed(2), oldTx.from_account_id)
+      }
+    } else if (oldTx.type === 'income' && oldTx.to_account_id && isExactSync(db, oldTx.to_account_id)) {
+      const account = db.prepare('SELECT balance FROM accounts WHERE id = ?').get(oldTx.to_account_id) as { balance: string } | undefined
+      if (account) {
+        db.prepare('UPDATE accounts SET balance = ? WHERE id = ?').run(new Decimal(account.balance).minus(oldAmount).toFixed(2), oldTx.to_account_id)
+      }
+    } else if (oldTx.type === 'transfer') {
+      if (oldTx.from_account_id && isExactSync(db, oldTx.from_account_id)) {
+        const from = db.prepare('SELECT balance FROM accounts WHERE id = ?').get(oldTx.from_account_id) as { balance: string } | undefined
+        if (from) {
+          db.prepare('UPDATE accounts SET balance = ? WHERE id = ?').run(new Decimal(from.balance).plus(oldAmount).toFixed(2), oldTx.from_account_id)
+        }
+      }
+      if (oldTx.to_account_id && isExactSync(db, oldTx.to_account_id)) {
+        const to = db.prepare('SELECT balance FROM accounts WHERE id = ?').get(oldTx.to_account_id) as { balance: string } | undefined
+        if (to) {
+          db.prepare('UPDATE accounts SET balance = ? WHERE id = ?').run(new Decimal(to.balance).minus(oldAmount).toFixed(2), oldTx.to_account_id)
+        }
+      }
+    }
+
+    // 更新交易记录
+    const fields: string[] = []
+    const values: any[] = []
+    if (updates.date !== undefined) { fields.push('date = ?'); values.push(updates.date) }
+    if (updates.type !== undefined) { fields.push('type = ?'); values.push(updates.type) }
+    if (updates.amount !== undefined) { fields.push('amount = ?'); values.push(updates.amount) }
+    if (updates.from_account_id !== undefined) { fields.push('from_account_id = ?'); values.push(updates.from_account_id) }
+    if (updates.to_account_id !== undefined) { fields.push('to_account_id = ?'); values.push(updates.to_account_id) }
+    if (updates.category_id !== undefined) { fields.push('category_id = ?'); values.push(updates.category_id) }
+    if (updates.description !== undefined) { fields.push('description = ?'); values.push(updates.description) }
+    if (updates.tags !== undefined) { fields.push('tags = ?'); values.push(updates.tags) }
+
+    if (fields.length > 0) {
+      values.push(id)
+      db.prepare(`UPDATE transactions SET ${fields.join(', ')} WHERE id = ?`).run(...values)
+    }
+
+    // 获取更新后的交易
+    const newTx = db.prepare('SELECT * FROM transactions WHERE id = ?').get(id) as Transaction
+    const newAmount = new Decimal(newTx.amount)
+
+    // 应用新交易的余额影响（仅精确同步账户）
+    if (newTx.type === 'expense' && newTx.from_account_id && isExactSync(db, newTx.from_account_id)) {
+      const account = db.prepare('SELECT balance FROM accounts WHERE id = ?').get(newTx.from_account_id) as { balance: string } | undefined
+      if (account) {
+        db.prepare('UPDATE accounts SET balance = ? WHERE id = ?').run(new Decimal(account.balance).minus(newAmount).toFixed(2), newTx.from_account_id)
+      }
+    } else if (newTx.type === 'income' && newTx.to_account_id && isExactSync(db, newTx.to_account_id)) {
+      const account = db.prepare('SELECT balance FROM accounts WHERE id = ?').get(newTx.to_account_id) as { balance: string } | undefined
+      if (account) {
+        db.prepare('UPDATE accounts SET balance = ? WHERE id = ?').run(new Decimal(account.balance).plus(newAmount).toFixed(2), newTx.to_account_id)
+      }
+    } else if (newTx.type === 'transfer') {
+      if (newTx.from_account_id && isExactSync(db, newTx.from_account_id)) {
+        const from = db.prepare('SELECT balance FROM accounts WHERE id = ?').get(newTx.from_account_id) as { balance: string } | undefined
+        if (from) {
+          db.prepare('UPDATE accounts SET balance = ? WHERE id = ?').run(new Decimal(from.balance).minus(newAmount).toFixed(2), newTx.from_account_id)
+        }
+      }
+      if (newTx.to_account_id && isExactSync(db, newTx.to_account_id)) {
+        const to = db.prepare('SELECT balance FROM accounts WHERE id = ?').get(newTx.to_account_id) as { balance: string } | undefined
+        if (to) {
+          db.prepare('UPDATE accounts SET balance = ? WHERE id = ?').run(new Decimal(to.balance).plus(newAmount).toFixed(2), newTx.to_account_id)
+        }
+      }
+    }
+
+    return newTx
+  })
+
+  return updateAndRebalance()
+}
+
 export function deleteTransaction(id: number): void {
   const db = getDatabase()
 
@@ -111,25 +299,25 @@ export function deleteTransaction(id: number): void {
 
     const amount = new Decimal(tx.amount)
 
-    // Reverse balance changes
-    if (tx.type === 'expense' && tx.from_account_id) {
+    // 撤销余额影响（仅精确同步账户）
+    if (tx.type === 'expense' && tx.from_account_id && isExactSync(db, tx.from_account_id)) {
       const account = db.prepare('SELECT balance FROM accounts WHERE id = ?').get(tx.from_account_id) as { balance: string } | undefined
       if (account) {
         db.prepare('UPDATE accounts SET balance = ? WHERE id = ?').run(new Decimal(account.balance).plus(amount).toFixed(2), tx.from_account_id)
       }
-    } else if (tx.type === 'income' && tx.to_account_id) {
+    } else if (tx.type === 'income' && tx.to_account_id && isExactSync(db, tx.to_account_id)) {
       const account = db.prepare('SELECT balance FROM accounts WHERE id = ?').get(tx.to_account_id) as { balance: string } | undefined
       if (account) {
         db.prepare('UPDATE accounts SET balance = ? WHERE id = ?').run(new Decimal(account.balance).minus(amount).toFixed(2), tx.to_account_id)
       }
     } else if (tx.type === 'transfer') {
-      if (tx.from_account_id) {
+      if (tx.from_account_id && isExactSync(db, tx.from_account_id)) {
         const from = db.prepare('SELECT balance FROM accounts WHERE id = ?').get(tx.from_account_id) as { balance: string } | undefined
         if (from) {
           db.prepare('UPDATE accounts SET balance = ? WHERE id = ?').run(new Decimal(from.balance).plus(amount).toFixed(2), tx.from_account_id)
         }
       }
-      if (tx.to_account_id) {
+      if (tx.to_account_id && isExactSync(db, tx.to_account_id)) {
         const to = db.prepare('SELECT balance FROM accounts WHERE id = ?').get(tx.to_account_id) as { balance: string } | undefined
         if (to) {
           db.prepare('UPDATE accounts SET balance = ? WHERE id = ?').run(new Decimal(to.balance).minus(amount).toFixed(2), tx.to_account_id)
@@ -439,7 +627,12 @@ export function generateQuarterlyReport(year: number, quarter: number): Quarterl
     return Math.round((current - prev) / Math.abs(prev) * 1000) / 10
   }
 
-  const netSavings = totalIncome - totalExpense
+  // 储蓄计算：优先使用净资产变动（更准确），回退到收支差额
+  const netWorthChange = currentNetWorth - prevNetWorth
+  const netSavingsFromTx = totalIncome - totalExpense
+  // 使用净资产变动作为实际储蓄，因为它包含了所有资金流动
+  const netSavings = netWorthChange !== 0 ? netWorthChange : netSavingsFromTx
+  // 储蓄率基于净资产变动
   const savingsRate = totalIncome > 0 ? Math.round(netSavings / totalIncome * 1000) / 10 : 0
 
   // ===== KPI 计算 =====
@@ -573,6 +766,7 @@ export function generateQuarterlyReport(year: number, quarter: number): Quarterl
       quarterLabel: range.label,
       dateRange: range.dateRange,
       generatedAt: new Date().toISOString(),
+      dataNote: '资产负债数据基于账户余额（准确），收支数据基于已记录交易（可能有遗漏）',
     },
     summary: {
       totalAssets,

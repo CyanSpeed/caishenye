@@ -1,6 +1,6 @@
 import { reactive, computed } from 'vue'
 import Decimal from 'decimal.js'
-import type { Account, Transaction, InvestmentSnapshot, Category, PhysicalAsset } from '@shared/types'
+import type { Account, Transaction, InvestmentSnapshot, Category, PhysicalAsset, BalanceSnapshot } from '@shared/types'
 
 interface FinanceState {
   accounts: Account[]
@@ -434,6 +434,18 @@ export function useFinance() {
     return created
   }
 
+  async function updateTransaction(id: number, updates: Partial<Transaction>): Promise<Transaction> {
+    const updated = await window.electronAPI.updateTransaction(id, updates) as Transaction
+    const idx = state.transactions.findIndex(t => t.id === id)
+    if (idx !== -1) {
+      state.transactions[idx] = updated
+    }
+    // Refresh accounts (balances changed)
+    const accounts = await window.electronAPI.getAccounts() as Account[]
+    state.accounts = accounts
+    return updated
+  }
+
   async function deleteTransaction(id: number): Promise<void> {
     await window.electronAPI.deleteTransaction(id)
     const idx = state.transactions.findIndex(t => t.id === id)
@@ -485,6 +497,28 @@ export function useFinance() {
     if (idx !== -1) state.physicalAssets.splice(idx, 1)
   }
 
+  // ---- Balance Sync ----
+  async function syncBalance(params: { account_id: number; new_balance: string; diff_handling: 'expense' | 'income' | 'ignore'; note?: string }): Promise<{ account: Account; snapshot: BalanceSnapshot }> {
+    const result = await window.electronAPI.syncBalance(params) as { account: Account; snapshot: BalanceSnapshot }
+    // 更新本地状态
+    const idx = state.accounts.findIndex(a => a.id === params.account_id)
+    if (idx !== -1) {
+      state.accounts[idx] = result.account
+    }
+    // 如果创建了交易记录，刷新交易列表和账户余额
+    if (params.diff_handling !== 'ignore') {
+      const transactions = await window.electronAPI.getTransactions() as Transaction[]
+      state.transactions = transactions
+      const accounts = await window.electronAPI.getAccounts() as Account[]
+      state.accounts = accounts
+    }
+    return result
+  }
+
+  async function getBalanceSnapshots(accountId: number): Promise<BalanceSnapshot[]> {
+    return await window.electronAPI.getBalanceSnapshots(accountId) as BalanceSnapshot[]
+  }
+
   return {
     state,
     init,
@@ -514,6 +548,7 @@ export function useFinance() {
     getAccountById,
     getCategoryById,
     addTransaction,
+    updateTransaction,
     deleteTransaction,
     addAccount,
     updateAccount,
@@ -521,5 +556,7 @@ export function useFinance() {
     addPhysicalAsset,
     updatePhysicalAsset,
     deletePhysicalAsset,
+    syncBalance,
+    getBalanceSnapshots,
   }
 }

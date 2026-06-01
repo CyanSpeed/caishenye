@@ -38,6 +38,8 @@ function registerIpcHandlers() {
   ipcMain.handle(IPC_CHANNELS.ADD_ACCOUNT, (_event, account) => ops.addAccount(account))
   ipcMain.handle(IPC_CHANNELS.UPDATE_ACCOUNT, (_event, id, updates) => ops.updateAccount(id, updates))
   ipcMain.handle(IPC_CHANNELS.DELETE_ACCOUNT, (_event, id) => ops.deleteAccount(id))
+  ipcMain.handle(IPC_CHANNELS.SYNC_BALANCE, (_event, params) => ops.syncBalance(params))
+  ipcMain.handle(IPC_CHANNELS.GET_BALANCE_SNAPSHOTS, (_event, accountId) => ops.getBalanceSnapshots(accountId))
 
   // Categories
   ipcMain.handle(IPC_CHANNELS.GET_CATEGORIES, () => ops.getAllCategories())
