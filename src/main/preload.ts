@@ -1,5 +1,6 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import { IPC_CHANNELS } from '@shared/types'
+import type { RecognitionConfig, BatchImportParams } from '@shared/types'
 
 const api = {
   // Ping
@@ -43,6 +44,12 @@ const api = {
   // Quarterly Report
   generateReport: (year: number, quarter: number) => ipcRenderer.invoke(IPC_CHANNELS.GENERATE_REPORT, year, quarter),
   exportReportPDF: (html: string, defaultName?: string) => ipcRenderer.invoke(IPC_CHANNELS.EXPORT_REPORT_PDF, html, defaultName),
+
+  // Image Recognition
+  recognizeExpenseImage: (imageBase64: string, config: RecognitionConfig) =>
+    ipcRenderer.invoke(IPC_CHANNELS.RECOGNIZE_EXPENSE_IMAGE, imageBase64, config),
+  batchAddTransactions: (params: BatchImportParams) =>
+    ipcRenderer.invoke(IPC_CHANNELS.BATCH_ADD_TRANSACTIONS, params),
 }
 
 contextBridge.exposeInMainWorld('electronAPI', api)

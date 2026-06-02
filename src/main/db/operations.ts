@@ -331,6 +331,57 @@ export function deleteTransaction(id: number): void {
   deleteAndReverse()
 }
 
+/** 批量导入参数 */
+export interface BatchImportParams {
+  items: {
+    category_id: number
+    amount: string
+    description: string
+  }[]
+  date: string
+  from_account_id: number
+}
+
+/** 批量添加交易记录（用于图像识别导入） */
+export function batchAddTransactions(params: BatchImportParams): Transaction[] {
+  const db = getDatabase()
+  const results: Transaction[] = []
+
+  const batchInsert = db.transaction(() => {
+    for (const item of params.items) {
+      const tx: Omit<Transaction, 'id'> = {
+        date: params.date,
+        type: 'expense',
+        amount: item.amount,
+        from_account_id: params.from_account_id,
+        to_account_id: null,
+        category_id: item.category_id,
+        description: item.description,
+        tags: '["截图导入"]',
+      }
+
+      const result = db.prepare(
+        'INSERT INTO transactions (date, type, amount, from_account_id, to_account_id, category_id, description, tags) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+      ).run(tx.date, tx.type, tx.amount, tx.from_account_id, tx.to_account_id, tx.category_id, tx.description, tx.tags)
+
+      // 更新账户余额（如果是精确同步模式）
+      if (tx.from_account_id && isExactSync(db, tx.from_account_id)) {
+        const amount = new Decimal(tx.amount)
+        const account = db.prepare('SELECT balance FROM accounts WHERE id = ?').get(tx.from_account_id) as { balance: string } | undefined
+        if (account) {
+          const newBalance = new Decimal(account.balance).minus(amount).toFixed(2)
+          db.prepare('UPDATE accounts SET balance = ? WHERE id = ?').run(newBalance, tx.from_account_id)
+        }
+      }
+
+      results.push({ ...tx, id: Number(result.lastInsertRowid) })
+    }
+  })
+
+  batchInsert()
+  return results
+}
+
 // ===== Investment Snapshots =====
 
 export function getAllInvestmentSnapshots(): InvestmentSnapshot[] {

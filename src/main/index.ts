@@ -1,9 +1,21 @@
 import { app, BrowserWindow, ipcMain, dialog } from 'electron'
 import { join } from 'path'
+import { execSync } from 'child_process'
 import { initDatabase, closeDatabase } from './db/init'
 import * as ops from './db/operations'
 import { IPC_CHANNELS } from '@shared/types'
+import type { RecognitionConfig, BatchImportParams } from '@shared/types'
 import { exportHTMLToPDF } from './report/export'
+import { recognizeExpenseImage } from './recognition'
+
+// 设置控制台编码为UTF-8（解决Windows中文乱码问题）
+if (process.platform === 'win32') {
+  try {
+    execSync('chcp 65001', { stdio: 'ignore' })
+  } catch {
+    // 忽略错误
+  }
+}
 
 let mainWindow: BrowserWindow | null = null
 
@@ -84,6 +96,16 @@ function registerIpcHandlers() {
     const fs = await import('fs/promises')
     await fs.writeFile(filePath, pdfBuffer)
     return { canceled: false, filePath }
+  })
+
+  // Image Recognition - 识别图像中的支出分类
+  ipcMain.handle(IPC_CHANNELS.RECOGNIZE_EXPENSE_IMAGE, async (_event, imageBase64: string, config: RecognitionConfig) => {
+    return await recognizeExpenseImage(imageBase64, config)
+  })
+
+  // Batch Add Transactions - 批量导入交易记录
+  ipcMain.handle(IPC_CHANNELS.BATCH_ADD_TRANSACTIONS, (_event, params: BatchImportParams) => {
+    return ops.batchAddTransactions(params)
   })
 }
 

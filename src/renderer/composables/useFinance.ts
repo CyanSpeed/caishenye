@@ -1,6 +1,6 @@
 import { reactive, computed } from 'vue'
 import Decimal from 'decimal.js'
-import type { Account, Transaction, InvestmentSnapshot, Category, PhysicalAsset, BalanceSnapshot } from '@shared/types'
+import type { Account, Transaction, InvestmentSnapshot, Category, PhysicalAsset, BalanceSnapshot, BatchImportParams } from '@shared/types'
 
 interface FinanceState {
   accounts: Account[]
@@ -455,6 +455,15 @@ export function useFinance() {
     state.accounts = accounts
   }
 
+  async function addBatchTransactions(params: BatchImportParams): Promise<Transaction[]> {
+    const created = await window.electronAPI.batchAddTransactions(params) as Transaction[]
+    state.transactions.push(...created)
+    // Refresh accounts (balances changed)
+    const accounts = await window.electronAPI.getAccounts() as Account[]
+    state.accounts = accounts
+    return created
+  }
+
   // ---- Mutations: Accounts ----
   async function addAccount(account: Omit<Account, 'id'>): Promise<Account> {
     const created = await window.electronAPI.addAccount(account) as Account
@@ -550,6 +559,7 @@ export function useFinance() {
     addTransaction,
     updateTransaction,
     deleteTransaction,
+    addBatchTransactions,
     addAccount,
     updateAccount,
     deleteAccount,

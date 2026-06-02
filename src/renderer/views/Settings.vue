@@ -185,6 +185,80 @@
         </div>
       </div>
 
+      <!-- 图像识别配置 -->
+      <div class="glass-card settings-section">
+        <div class="section-title">
+          <CameraOutlined :size="20" />
+          <span>图像识别配置</span>
+        </div>
+
+        <div class="settings-group">
+          <div class="setting-item">
+            <div class="setting-label">
+              <span class="label-text">识别服务提供商</span>
+              <span class="label-desc">选择用于识别记账截图的AI服务</span>
+            </div>
+            <n-select
+              v-model:value="recognitionConfig.provider"
+              :options="providerOptions"
+              placeholder="选择提供商"
+              style="width: 200px"
+            />
+          </div>
+
+          <div class="setting-item">
+            <div class="setting-label">
+              <span class="label-text">API密钥</span>
+              <span class="label-desc">用于访问识别服务的密钥</span>
+            </div>
+            <n-input
+              v-model:value="recognitionConfig.apiKey"
+              type="password"
+              show-password-on="click"
+              placeholder="输入API密钥"
+              style="width: 300px"
+            />
+          </div>
+
+          <div class="setting-item" v-if="recognitionConfig.provider === 'custom' || recognitionConfig.provider === 'ollama'">
+            <div class="setting-label">
+              <span class="label-text">API端点</span>
+              <span class="label-desc">自定义API端点地址</span>
+            </div>
+            <n-input
+              v-model:value="recognitionConfig.baseUrl"
+              placeholder="如：https://api.xiaomimimo.com/v1"
+              style="width: 300px"
+            />
+          </div>
+
+          <div class="setting-item">
+            <div class="setting-label">
+              <span class="label-text">模型名称</span>
+              <span class="label-desc">使用的模型（留空使用默认模型）</span>
+            </div>
+            <n-input
+              v-model:value="recognitionConfig.model"
+              placeholder="如：mimo-v2.5"
+              style="width: 200px"
+            />
+          </div>
+
+          <div class="config-hint" v-if="recognitionConfig.provider === 'custom'">
+            <p><strong>小米MiMo配置示例：</strong></p>
+            <p>API端点：<code>https://api.xiaomimimo.com/v1</code></p>
+            <p>模型名称：<code>mimo-v2.5</code></p>
+          </div>
+
+          <div class="setting-item" style="justify-content: flex-end; gap: 12px;">
+            <n-button @click="testRecognitionConfig" :loading="testing">
+              测试连接
+            </n-button>
+            <n-button type="primary" @click="saveRecognitionConfig">保存识别配置</n-button>
+          </div>
+        </div>
+      </div>
+
       <!-- 软件信息 -->
       <div class="glass-card settings-section">
         <div class="section-title">
@@ -234,8 +308,9 @@ import {
   WalletOutlined,
   EyeOutlined,
   InfoCircleOutlined,
+  CameraOutlined,
 } from '@vicons/antd'
-import type { FamilyInfo } from '@shared/types'
+import type { FamilyInfo, RecognitionConfig } from '@shared/types'
 import { useColorMode } from '../composables/useColorMode'
 import type { ColorMode } from '../composables/useColorMode'
 
@@ -291,7 +366,79 @@ async function saveFamilyInfo() {
 
 onMounted(() => {
   loadFamilyInfo()
+  loadRecognitionConfig()
 })
+
+// 图像识别配置
+const recognitionConfig = reactive<RecognitionConfig>({
+  provider: 'openai',
+  apiKey: '',
+  baseUrl: '',
+  model: '',
+})
+
+const providerOptions = [
+  { label: 'OpenAI (GPT-4o)', value: 'openai' },
+  { label: 'Anthropic (Claude)', value: 'anthropic' },
+  { label: 'Google (Gemini)', value: 'google' },
+  { label: 'Ollama (本地模型)', value: 'ollama' },
+  { label: '自定义端点', value: 'custom' },
+]
+
+async function loadRecognitionConfig() {
+  try {
+    const configStr = localStorage.getItem('recognition_config')
+    if (configStr) {
+      const config = JSON.parse(configStr) as RecognitionConfig
+      Object.assign(recognitionConfig, config)
+    }
+  } catch {
+    // 忽略加载错误
+  }
+}
+
+async function saveRecognitionConfig() {
+  try {
+    localStorage.setItem('recognition_config', JSON.stringify(recognitionConfig))
+    message.success('识别配置已保存')
+  } catch (err: any) {
+    message.error(`保存失败：${err.message || '未知错误'}`)
+  }
+}
+
+const testing = ref(false)
+
+async function testRecognitionConfig() {
+  if (!recognitionConfig.apiKey) {
+    message.error('请先输入API密钥')
+    return
+  }
+
+  if ((recognitionConfig.provider === 'custom' || recognitionConfig.provider === 'ollama') && !recognitionConfig.baseUrl) {
+    message.error('请先输入API端点')
+    return
+  }
+
+  testing.value = true
+  try {
+    // 创建一个简单的测试图片（1x1像素的白色PNG）
+    const testImage = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=='
+
+    await window.electronAPI.recognizeExpenseImage(testImage, recognitionConfig)
+    message.success('API连接测试成功！')
+  } catch (error) {
+    const errorMsg = (error as Error).message
+    if (errorMsg.includes('401') || errorMsg.includes('Invalid API Key')) {
+      message.error('API密钥无效，请检查后重试')
+    } else if (errorMsg.includes('Failed to fetch') || errorMsg.includes('NetworkError')) {
+      message.error('网络连接失败，请检查API端点地址')
+    } else {
+      message.error(`连接测试失败：${errorMsg}`)
+    }
+  } finally {
+    testing.value = false
+  }
+}
 
 // 设置数据
 const settings = reactive({
@@ -516,5 +663,30 @@ const dateFormatOptions = [
   display: flex;
   align-items: center;
   gap: 8px;
+}
+
+.config-hint {
+  background: var(--bg-hover);
+  border-radius: 8px;
+  padding: 16px;
+  border: 1px solid var(--border-card);
+}
+
+.config-hint p {
+  margin: 0 0 8px 0;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.config-hint p:last-child {
+  margin-bottom: 0;
+}
+
+.config-hint code {
+  background: var(--bg-card);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 12px;
+  color: var(--accent-blue);
 }
 </style>

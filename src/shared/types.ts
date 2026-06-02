@@ -242,4 +242,44 @@ export const IPC_CHANNELS = {
   // Quarterly Report
   GENERATE_REPORT: 'generate-report',
   EXPORT_REPORT_PDF: 'export-report-pdf',
+  // Image Recognition
+  RECOGNIZE_EXPENSE_IMAGE: 'recognize-expense-image',
+  BATCH_ADD_TRANSACTIONS: 'batch-add-transactions',
 } as const
+
+// ===== Image Recognition Types =====
+
+export type RecognitionProvider = 'openai' | 'anthropic' | 'google' | 'ollama' | 'custom'
+
+export interface RecognitionConfig {
+  provider: RecognitionProvider
+  apiKey: string
+  baseUrl: string
+  model: string
+}
+
+export interface RecognizedCategory {
+  name: string           // 识别出的类别名（如"餐饮"）
+  amount: string         // 识别出的金额（字符串，Decimal精度）
+  confidence: number     // 置信度 0-1
+  matchedCategoryId?: number  // 匹配到的系统分类ID
+  matchedCategoryName?: string // 匹配到的系统分类名
+}
+
+export interface RecognitionResult {
+  categories: RecognizedCategory[]
+  totalAmount: string
+  rawResponse?: string   // 原始API响应，用于调试
+}
+
+export interface BatchImportItem {
+  category_id: number
+  amount: string
+  description: string
+}
+
+export interface BatchImportParams {
+  items: BatchImportItem[]
+  date: string           // YYYY-MM-DD
+  from_account_id: number
+}

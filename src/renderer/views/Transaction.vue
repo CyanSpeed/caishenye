@@ -2,6 +2,10 @@
   <div class="tx-page">
     <div class="page-header">
       <h2 class="page-title">交易记账</h2>
+      <n-button @click="showImageImport = true" type="primary" ghost>
+        <template #icon><RobotOutlined /></template>
+        AI 识别导入
+      </n-button>
     </div>
 
     <div class="tx-layout">
@@ -174,6 +178,12 @@
       </div>
     </div>
 
+    <!-- 图像导入模态框 -->
+    <ImageImportModal
+      v-model:show="showImageImport"
+      @imported="handleImageImported"
+    />
+
     <!-- 编辑交易模态框 -->
     <n-modal
       v-model:show="showEditModal"
@@ -258,10 +268,11 @@ import {
   NButton, NDataTable, NPopconfirm, NModal, useMessage,
 } from 'naive-ui'
 import CalculatorInput from '../components/CalculatorInput.vue'
+import ImageImportModal from '../components/ImageImportModal.vue'
 import type { DataTableColumn } from 'naive-ui'
 import {
   PlusOutlined, ArrowUpOutlined, ArrowDownOutlined, SwapOutlined,
-  DeleteOutlined, EditOutlined, SearchOutlined,
+  DeleteOutlined, EditOutlined, SearchOutlined, RobotOutlined,
 } from '@vicons/antd'
 import { useFinance } from '../composables/useFinance'
 import { useFormatter } from '../composables/useFormatter'
@@ -281,6 +292,7 @@ const editSubmitting = ref(false)
 const showFilters = ref(false)
 const showEditModal = ref(false)
 const editingId = ref<number | null>(null)
+const showImageImport = ref(false)
 
 const today = new Date().toISOString().slice(0, 10)
 
@@ -551,11 +563,16 @@ async function handleSubmit() {
     }
   })
 }
+
+function handleImageImported() {
+  // 图像导入成功后的回调，可以刷新列表或显示提示
+  message.success('截图导入成功，交易记录已更新')
+}
 </script>
 
 <style scoped>
 .tx-page { padding: clamp(16px, 2vw, 32px); width: 100%; box-sizing: border-box; }
-.page-header { margin-bottom: 24px; }
+.page-header { margin-bottom: 24px; display: flex; justify-content: space-between; align-items: center; }
 .page-title { margin: 0; font-size: 24px; font-weight: 700; color: var(--text-primary); }
 .tx-layout { display: grid; grid-template-columns: clamp(320px, 22vw, 420px) 1fr; gap: clamp(16px, 1.5vw, 24px); align-items: start; }
 
