@@ -291,9 +291,9 @@ import type { DataTableColumn } from 'naive-ui'
 import {
   PlusOutlined, DeleteOutlined, EditOutlined, SearchOutlined, RobotOutlined,
 } from '@vicons/antd'
-import OutcomeSvg from '../../assets/outcome.svg'
-import IncomeSvg from '../../assets/income.svg'
-import TransferSvg from '../../assets/transfer.svg'
+import OutcomeSvg from '../../assets/outcome.svg?url'
+import IncomeSvg from '../../assets/income.svg?url'
+import TransferSvg from '../../assets/transfer.svg?url'
 import { useFinance } from '../composables/useFinance'
 import { useFormatter } from '../composables/useFormatter'
 import { useColorMode } from '../composables/useColorMode'
