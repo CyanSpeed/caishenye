@@ -30,29 +30,18 @@ async function init() {
 
   initPromise = (async () => {
     const api = window.electronAPI
-    const [accounts, transactions, snapshots, categories, physicalAssets, settings] = await Promise.all([
+    const [accounts, transactions, snapshots, categories, physicalAssets] = await Promise.all([
       api.getAccounts(),
       api.getTransactions(),
       api.getInvestmentSnapshots(),
       api.getCategories(),
       api.getPhysicalAssets(),
-      api.getSettings(),
     ])
     state.accounts = accounts as Account[]
     state.transactions = transactions as Transaction[]
     state.snapshots = snapshots as InvestmentSnapshot[]
     state.categories = categories as Category[]
     state.physicalAssets = physicalAssets as PhysicalAsset[]
-
-    // Load family members
-    const info = (settings as { key: string; value: string }[]).find(s => s.key === 'family_info')
-    if (info) {
-      try {
-        const parsed = JSON.parse(info.value) as FamilyInfo
-        state.familyMembers = parsed.members || []
-      } catch { /* ignore */ }
-    }
-
     state.initialized = true
   })()
 
@@ -541,16 +530,21 @@ export function useFinance() {
     return await window.electronAPI.getBalanceSnapshots(accountId) as BalanceSnapshot[]
   }
 
-  // ---- Family Members ----
-  const memberOptions = computed(() =>
-    state.familyMembers.map(m => ({ label: m.name + ' (' + m.role + ')', value: m.name }))
-  )
+  // ---- Family Members (lazy loaded) ----
+  let membersLoaded = false
+
+  const memberOptions = computed(() => {
+    if (!membersLoaded) loadFamilyMembers()
+    return state.familyMembers.map(m => ({ label: m.name + ' (' + m.role + ')', value: m.name }))
+  })
 
   function getMemberByName(name: string): FamilyMember | undefined {
+    if (!membersLoaded) loadFamilyMembers()
     return state.familyMembers.find(m => m.name === name)
   }
 
   async function loadFamilyMembers() {
+    if (membersLoaded) return
     try {
       const settings = await window.electronAPI.getSettings() as { key: string; value: string }[]
       const info = settings.find(s => s.key === 'family_info')
@@ -558,6 +552,7 @@ export function useFinance() {
         const parsed = JSON.parse(info.value) as FamilyInfo
         state.familyMembers = parsed.members || []
       }
+      membersLoaded = true
     } catch { /* ignore */ }
   }
 
