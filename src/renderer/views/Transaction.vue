@@ -361,24 +361,6 @@ const editRules = {
   category_id: [{ required: true, message: '请选择分类', trigger: 'change', type: 'number' }],
 }
 
-onMounted(() => {
-  loadFamilyInfo()
-})
-
-// ===== 家庭成员 =====
-const familyInfo = ref<FamilyInfo>({ familyName: '', members: [], city: '', preparer: '', reviewer: '' })
-
-async function loadFamilyInfo() {
-  try {
-    const settings = await window.electronAPI.getSettings() as { key: string; value: string }[]
-    const info = settings.find(s => s.key === 'family_info')
-    if (info) {
-      const parsed = JSON.parse(info.value) as FamilyInfo
-      familyInfo.value = parsed
-    }
-  } catch { /* ignore */ }
-}
-
 // ===== 筛选条件 =====
 const filters = ref({
   keyword: '',
