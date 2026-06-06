@@ -42,6 +42,7 @@ export interface Transaction {
   category_id: number | null
   description: string
   tags: string // JSON string
+  member_name: string // 家庭成员姓名，仅支出类型使用
 }
 
 export interface InvestmentSnapshot {
@@ -85,9 +86,16 @@ export interface Settings {
   value: string
 }
 
+export interface FamilyMember {
+  name: string
+  role: string
+  age: number
+  avatar: string // base64 头像图片数据
+}
+
 export interface FamilyInfo {
   familyName: string
-  members: { name: string; role: string; age: number }[]
+  members: FamilyMember[]
   city: string
   preparer: string
   reviewer: string
@@ -245,6 +253,18 @@ export const IPC_CHANNELS = {
   // Image Recognition
   RECOGNIZE_EXPENSE_IMAGE: 'recognize-expense-image',
   BATCH_ADD_TRANSACTIONS: 'batch-add-transactions',
+  // Reset
+  RESET_TRANSACTION_DATA: 'reset-transaction-data',
+  // Database Export
+  EXPORT_DATABASE: 'export-database',
+  GET_DATABASE_PATH: 'get-database-path',
+  // File Dialog
+  SELECT_IMAGE_FILE: 'select-image-file',
+  SELECT_DIRECTORY: 'select-directory',
+  // Auto Backup
+  GET_BACKUP_CONFIG: 'get-backup-config',
+  UPDATE_BACKUP_CONFIG: 'update-backup-config',
+  RUN_BACKUP: 'run-backup',
 } as const
 
 // ===== Image Recognition Types =====
@@ -276,6 +296,7 @@ export interface BatchImportItem {
   category_id: number
   amount: string
   description: string
+  member_name?: string // 可选：家庭成员姓名
 }
 
 export interface BatchImportParams {

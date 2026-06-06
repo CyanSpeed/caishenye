@@ -49,16 +49,21 @@
           <div class="setting-item" style="flex-direction: column; align-items: flex-start; gap: 12px;">
             <div class="setting-label">
               <span class="label-text">家庭成员</span>
-              <span class="label-desc">添加家庭成员信息</span>
+              <span class="label-desc">添加家庭成员信息，点击头像可上传照片</span>
             </div>
             <div class="members-list">
               <div v-for="(member, idx) in familyInfo.members" :key="idx" class="member-row">
-                <n-input v-model:value="member.name" placeholder="姓名" style="width: 120px" />
+                <div class="avatar-upload" @click="handleAvatarUpload(idx)" :title="member.avatar ? '点击更换头像' : '点击上传头像'">
+                  <img v-if="member.avatar" :src="member.avatar" class="avatar-img" />
+                  <span v-else class="avatar-placeholder">👤</span>
+                  <div class="avatar-overlay">📷</div>
+                </div>
+                <n-input v-model:value="member.name" placeholder="姓名" style="width: 100px" />
                 <n-select v-model:value="member.role" :options="roleOptions" placeholder="角色" style="width: 100px" />
-                <n-input-number v-model:value="member.age" :min="0" :max="150" placeholder="年龄" style="width: 100px" />
+                <n-input-number v-model:value="member.age" :min="0" :max="150" placeholder="年龄" style="width: 80px" />
                 <n-button text type="error" @click="familyInfo.members.splice(idx, 1)">删除</n-button>
               </div>
-              <n-button dashed @click="familyInfo.members.push({ name: '', role: '', age: 0 })" style="width: 100%">
+              <n-button dashed @click="familyInfo.members.push({ name: '', role: '', age: 0, avatar: '' })" style="width: 100%">
                 + 添加成员
               </n-button>
             </div>
@@ -90,40 +95,6 @@
               style="width: 200px"
             />
           </div>
-
-          <div class="setting-item">
-            <div class="setting-label">
-              <span class="label-text">财务年度开始月</span>
-              <span class="label-desc">设置财务年度的起始月份</span>
-            </div>
-            <n-select
-              v-model:value="settings.fiscalYearStart"
-              :options="monthOptions"
-              placeholder="选择月份"
-              style="width: 200px"
-            />
-          </div>
-
-          <div class="setting-item">
-            <div class="setting-label">
-              <span class="label-text">自动备份</span>
-              <span class="label-desc">定期自动备份财务数据</span>
-            </div>
-            <n-switch v-model:value="settings.autoBackup" />
-          </div>
-
-          <div class="setting-item">
-            <div class="setting-label">
-              <span class="label-text">数据保留期限</span>
-              <span class="label-desc">设置交易数据保留时间</span>
-            </div>
-            <n-select
-              v-model:value="settings.dataRetention"
-              :options="retentionOptions"
-              placeholder="选择期限"
-              style="width: 200px"
-            />
-          </div>
         </div>
       </div>
 
@@ -135,32 +106,6 @@
         </div>
 
         <div class="settings-group">
-          <div class="setting-item">
-            <div class="setting-label">
-              <span class="label-text">数字格式</span>
-              <span class="label-desc">设置金额的显示格式</span>
-            </div>
-            <n-select
-              v-model:value="settings.numberFormat"
-              :options="numberFormatOptions"
-              placeholder="选择格式"
-              style="width: 200px"
-            />
-          </div>
-
-          <div class="setting-item">
-            <div class="setting-label">
-              <span class="label-text">日期格式</span>
-              <span class="label-desc">设置日期的显示格式</span>
-            </div>
-            <n-select
-              v-model:value="settings.dateFormat"
-              :options="dateFormatOptions"
-              placeholder="选择格式"
-              style="width: 200px"
-            />
-          </div>
-
           <div class="setting-item">
             <div class="setting-label">
               <span class="label-text">图表动画</span>
@@ -245,9 +190,9 @@
           </div>
 
           <div class="config-hint" v-if="recognitionConfig.provider === 'custom'">
-            <p><strong>小米MiMo配置示例：</strong></p>
-            <p>API端点：<code>https://api.xiaomimimo.com/v1</code></p>
-            <p>模型名称：<code>mimo-v2.5</code></p>
+            <p><strong>自定义端点配置示例：</strong></p>
+            <p>API端点：<code>https://api.example.com/v1</code></p>
+            <p>模型名称：<code>your-model-name</code></p>
           </div>
 
           <div class="setting-item" style="justify-content: flex-end; gap: 12px;">
@@ -255,6 +200,82 @@
               测试连接
             </n-button>
             <n-button type="primary" @click="saveRecognitionConfig">保存识别配置</n-button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 数据管理 -->
+      <div class="glass-card settings-section">
+        <div class="section-title">
+          <DatabaseOutlined :size="20" />
+          <span>数据管理</span>
+        </div>
+
+        <div class="settings-group">
+          <!-- 数据库导出备份 -->
+          <div class="setting-item">
+            <div class="setting-label">
+              <span class="label-text">导出数据库备份</span>
+              <span class="label-desc">将整个数据库文件导出到指定位置进行备份</span>
+            </div>
+            <n-button type="primary" @click="handleExportDatabase" :loading="exporting">
+              导出数据库
+            </n-button>
+          </div>
+
+          <!-- 自动备份 -->
+          <div class="setting-item" style="flex-direction: column; align-items: flex-start; gap: 12px;">
+            <div class="setting-label">
+              <span class="label-text">自动备份</span>
+              <span class="label-desc">启用后将在应用退出时自动备份数据库</span>
+            </div>
+            <div class="backup-config">
+              <div class="backup-row">
+                <span class="backup-label">启用自动备份</span>
+                <n-switch v-model:value="backupConfig.enabled" @update:value="saveBackupConfig" />
+              </div>
+              <div class="backup-row" v-if="backupConfig.enabled">
+                <span class="backup-label">备份目录</span>
+                <div style="display: flex; gap: 8px; align-items: center;">
+                  <n-input v-model:value="backupConfig.directory" placeholder="选择备份目录..." readonly style="width: 250px" />
+                  <n-button size="small" @click="handleSelectBackupDir">选择目录</n-button>
+                </div>
+              </div>
+              <div class="backup-row" v-if="backupConfig.enabled">
+                <span class="backup-label">立即备份</span>
+                <n-button size="small" @click="handleRunBackup" :loading="backingUp">执行备份</n-button>
+              </div>
+            </div>
+          </div>
+
+          <!-- 分隔线 -->
+          <div style="border-top: 1px solid var(--border-subtle); margin: 8px 0;"></div>
+
+          <!-- 重置数据 -->
+          <div class="setting-item">
+            <div class="setting-label">
+              <span class="label-text">重置交易记账数据</span>
+              <span class="label-desc">清空所有交易记录、余额快照、净资产快照和投资快照，并重置分类为新的12种分类。账户和资产数据不受影响。</span>
+            </div>
+            <n-popconfirm @positive-click="handleResetTransactions">
+              <template #trigger>
+                <n-button type="error" :loading="resetting">
+                  重置交易数据
+                </n-button>
+              </template>
+              <div style="max-width: 300px;">
+                <p style="font-weight: 600; margin-bottom: 8px;">⚠️ 确认重置？</p>
+                <p style="font-size: 13px; color: #666;">此操作将：</p>
+                <ul style="font-size: 13px; color: #666; margin: 8px 0; padding-left: 20px;">
+                  <li>删除所有交易记录</li>
+                  <li>删除所有余额快照</li>
+                  <li>删除所有净资产快照</li>
+                  <li>删除所有投资市值快照</li>
+                  <li>重置分类为新的12种分类</li>
+                </ul>
+                <p style="font-size: 13px; color: #666;">账户和资产数据将保留。此操作不可撤销。</p>
+              </div>
+            </n-popconfirm>
           </div>
         </div>
       </div>
@@ -303,14 +324,15 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
-import { NSelect, NSwitch, NInput, NInputNumber, NButton, useMessage } from 'naive-ui'
+import { NSelect, NSwitch, NInput, NInputNumber, NButton, NPopconfirm, useMessage } from 'naive-ui'
 import {
   WalletOutlined,
   EyeOutlined,
   InfoCircleOutlined,
   CameraOutlined,
+  DatabaseOutlined,
 } from '@vicons/antd'
-import type { FamilyInfo, RecognitionConfig } from '@shared/types'
+import type { FamilyInfo, FamilyMember, RecognitionConfig } from '@shared/types'
 import { useColorMode } from '../composables/useColorMode'
 import type { ColorMode } from '../composables/useColorMode'
 
@@ -348,6 +370,13 @@ async function loadFamilyInfo() {
     const info = settings.find(s => s.key === 'family_info')
     if (info) {
       const parsed = JSON.parse(info.value) as FamilyInfo
+      // 兼容旧数据：为没有 avatar 字段的成员补充默认值
+      if (parsed.members) {
+        parsed.members = parsed.members.map((m: any) => ({
+          ...m,
+          avatar: m.avatar || '',
+        }))
+      }
       Object.assign(familyInfo, parsed)
     }
   } catch {
@@ -364,9 +393,22 @@ async function saveFamilyInfo() {
   }
 }
 
+// 头像上传
+async function handleAvatarUpload(idx: number) {
+  try {
+    const base64 = await window.electronAPI.selectImageFile()
+    if (base64) {
+      familyInfo.members[idx].avatar = base64
+    }
+  } catch (err: any) {
+    message.error(`头像上传失败：${err.message || '未知错误'}`)
+  }
+}
+
 onMounted(() => {
   loadFamilyInfo()
   loadRecognitionConfig()
+  loadBackupConfig()
 })
 
 // 图像识别配置
@@ -406,7 +448,109 @@ async function saveRecognitionConfig() {
   }
 }
 
+async function handleResetTransactions() {
+  resetting.value = true
+  try {
+    const result = await window.electronAPI.resetTransactionData() as {
+      transactionsDeleted: number
+      snapshotsDeleted: number
+      netWorthDeleted: number
+      investmentDeleted: number
+    }
+    message.success(
+      `重置成功！已删除 ${result.transactionsDeleted} 条交易记录、` +
+      `${result.snapshotsDeleted} 条余额快照、` +
+      `${result.netWorthDeleted} 条净资产快照、` +
+      `${result.investmentDeleted} 条投资快照。分类已更新为新的12种分类。`
+    )
+  } catch (err: any) {
+    message.error(`重置失败：${err.message || '未知错误'}`)
+  } finally {
+    resetting.value = false
+  }
+}
+
+// 备份配置
+const backupConfig = reactive({
+  enabled: false,
+  directory: '',
+  frequency: 'weekly',
+})
+
+async function loadBackupConfig() {
+  try {
+    const config = await window.electronAPI.getBackupConfig() as {
+      enabled: boolean
+      directory: string
+      frequency: string
+    }
+    if (config) {
+      Object.assign(backupConfig, config)
+    }
+  } catch {
+    // 忽略加载错误
+  }
+}
+
+async function saveBackupConfig() {
+  try {
+    await window.electronAPI.updateBackupConfig({
+      enabled: backupConfig.enabled,
+      directory: backupConfig.directory,
+      frequency: backupConfig.frequency,
+    })
+    message.success('备份配置已保存')
+  } catch (err: any) {
+    message.error(`保存备份配置失败：${err.message || '未知错误'}`)
+  }
+}
+
+async function handleSelectBackupDir() {
+  try {
+    const dir = await window.electronAPI.selectDirectory()
+    if (dir) {
+      backupConfig.directory = dir
+      await saveBackupConfig()
+    }
+  } catch {
+    // 用户取消
+  }
+}
+
+async function handleExportDatabase() {
+  exporting.value = true
+  try {
+    const result = await window.electronAPI.exportDatabase() as { canceled: boolean; filePath?: string }
+    if (!result.canceled && result.filePath) {
+      message.success(`数据库已导出到：${result.filePath}`)
+    }
+  } catch (err: any) {
+    message.error(`导出失败：${err.message || '未知错误'}`)
+  } finally {
+    exporting.value = false
+  }
+}
+
+async function handleRunBackup() {
+  backingUp.value = true
+  try {
+    const result = await window.electronAPI.runBackup() as { success: boolean; reason?: string; filePath?: string }
+    if (result.success) {
+      message.success(`备份完成：${result.filePath}`)
+    } else {
+      message.error(result.reason || '备份失败')
+    }
+  } catch (err: any) {
+    message.error(`备份失败：${err.message || '未知错误'}`)
+  } finally {
+    backingUp.value = false
+  }
+}
+
 const testing = ref(false)
+const resetting = ref(false)
+const exporting = ref(false)
+const backingUp = ref(false)
 
 async function testRecognitionConfig() {
   if (!recognitionConfig.apiKey) {
@@ -440,14 +584,9 @@ async function testRecognitionConfig() {
   }
 }
 
-// 设置数据
+// 设置数据（精简后仅保留实际使用的字段）
 const settings = reactive({
   currency: 'CNY',
-  fiscalYearStart: 1,
-  autoBackup: true,
-  dataRetention: '2years',
-  numberFormat: '1,234.56',
-  dateFormat: 'YYYY-MM-DD',
   chartAnimation: true,
 })
 
@@ -458,41 +597,6 @@ const currencyOptions = [
   { label: '欧元 (EUR)', value: 'EUR' },
   { label: '日元 (JPY)', value: 'JPY' },
   { label: '英镑 (GBP)', value: 'GBP' },
-]
-
-const monthOptions = [
-  { label: '1月', value: 1 },
-  { label: '2月', value: 2 },
-  { label: '3月', value: 3 },
-  { label: '4月', value: 4 },
-  { label: '5月', value: 5 },
-  { label: '6月', value: 6 },
-  { label: '7月', value: 7 },
-  { label: '8月', value: 8 },
-  { label: '9月', value: 9 },
-  { label: '10月', value: 10 },
-  { label: '11月', value: 11 },
-  { label: '12月', value: 12 },
-]
-
-const retentionOptions = [
-  { label: '1年', value: '1year' },
-  { label: '2年', value: '2years' },
-  { label: '3年', value: '3years' },
-  { label: '5年', value: '5years' },
-  { label: '永久保留', value: 'forever' },
-]
-
-const numberFormatOptions = [
-  { label: '1,234.56', value: '1,234.56' },
-  { label: '1.234,56', value: '1.234,56' },
-  { label: '1 234.56', value: '1 234.56' },
-]
-
-const dateFormatOptions = [
-  { label: 'YYYY-MM-DD', value: 'YYYY-MM-DD' },
-  { label: 'DD/MM/YYYY', value: 'DD/MM/YYYY' },
-  { label: 'MM/DD/YYYY', value: 'MM/DD/YYYY' },
 ]
 </script>
 
@@ -663,6 +767,75 @@ const dateFormatOptions = [
   display: flex;
   align-items: center;
   gap: 8px;
+}
+
+/* 头像上传样式 */
+.avatar-upload {
+  position: relative;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  cursor: pointer;
+  flex-shrink: 0;
+  overflow: hidden;
+  border: 2px dashed var(--border-subtle);
+  transition: border-color 0.2s;
+}
+
+.avatar-upload:hover {
+  border-color: var(--accent-blue);
+}
+
+.avatar-upload:hover .avatar-overlay {
+  opacity: 1;
+}
+
+.avatar-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.avatar-placeholder {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+  background: var(--bg-hover);
+}
+
+.avatar-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.4);
+  opacity: 0;
+  transition: opacity 0.2s;
+  font-size: 14px;
+  color: #fff;
+}
+
+/* 备份配置样式 */
+.backup-config {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.backup-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.backup-label {
+  font-size: 14px;
+  color: var(--text-secondary);
 }
 
 .config-hint {

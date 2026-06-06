@@ -21,7 +21,7 @@
                 :class="{ active: form.type === opt.value }"
                 @click="form.type = opt.value"
               >
-                <component :is="opt.icon" :size="16" />
+                <img :src="opt.icon" width="16" height="16" />
                 {{ opt.label }}
               </button>
             </div>
@@ -68,6 +68,15 @@
 
           <n-form-item label="备注" path="description">
             <n-input v-model:value="form.description" placeholder="添加备注..." maxlength="100" show-count />
+          </n-form-item>
+
+          <n-form-item label="家庭成员" path="member_name" v-if="form.type === 'expense'">
+            <n-select
+              v-model:value="form.member_name"
+              :options="memberOptions"
+              placeholder="选择成员（可选）"
+              clearable
+            />
           </n-form-item>
 
           <div class="form-actions">
@@ -250,6 +259,15 @@
         <n-form-item label="备注" path="description">
           <n-input v-model:value="editForm.description" placeholder="添加备注..." maxlength="100" show-count />
         </n-form-item>
+
+        <n-form-item label="家庭成员" path="member_name" v-if="editForm.type === 'expense'">
+          <n-select
+            v-model:value="editForm.member_name"
+            :options="memberOptions"
+            placeholder="选择成员（可选）"
+            clearable
+          />
+        </n-form-item>
       </n-form>
       <template #footer>
         <div style="display: flex; justify-content: flex-end; gap: 12px;">
@@ -271,18 +289,23 @@ import CalculatorInput from '../components/CalculatorInput.vue'
 import ImageImportModal from '../components/ImageImportModal.vue'
 import type { DataTableColumn } from 'naive-ui'
 import {
-  PlusOutlined, ArrowUpOutlined, ArrowDownOutlined, SwapOutlined,
-  DeleteOutlined, EditOutlined, SearchOutlined, RobotOutlined,
+  PlusOutlined, DeleteOutlined, EditOutlined, SearchOutlined, RobotOutlined,
 } from '@vicons/antd'
+import OutcomeSvg from '../../assets/outcome.svg'
+import IncomeSvg from '../../assets/income.svg'
+import TransferSvg from '../../assets/transfer.svg'
 import { useFinance } from '../composables/useFinance'
 import { useFormatter } from '../composables/useFormatter'
+import { useColorMode } from '../composables/useColorMode'
 import type { TransactionType, Transaction } from '@shared/types'
 
 const {
   sortedTransactions, expenseCategories, incomeCategories, assetAccounts,
   getAccountById, getCategoryById, addTransaction, updateTransaction, deleteTransaction,
+  memberOptions, getMemberByName,
 } = useFinance()
 const { currencyPlain, shortDate } = useFormatter()
+const { amountClass } = useColorMode()
 const message = useMessage()
 
 const formRef = ref()
@@ -293,6 +316,10 @@ const showFilters = ref(false)
 const showEditModal = ref(false)
 const editingId = ref<number | null>(null)
 const showImageImport = ref(false)
+
+// ===== 家庭成员 =====
+// memberOptions and getMemberByName are provided by useFinance()
+// which loads family members during init
 
 const today = new Date().toISOString().slice(0, 10)
 
@@ -305,6 +332,7 @@ const form = ref({
   to_account_id: null as number | null,
   date: today,
   description: '',
+  member_name: '',
 })
 
 const rules = {
@@ -323,6 +351,7 @@ const editForm = ref({
   to_account_id: null as number | null,
   date: today,
   description: '',
+  member_name: '',
 })
 
 const editRules = {
@@ -330,6 +359,24 @@ const editRules = {
   from_account_id: [{ required: true, message: '请选择账户', trigger: 'change', type: 'number' }],
   to_account_id: [{ required: true, message: '请选择目标账户', trigger: 'change', type: 'number' }],
   category_id: [{ required: true, message: '请选择分类', trigger: 'change', type: 'number' }],
+}
+
+onMounted(() => {
+  loadFamilyInfo()
+})
+
+// ===== 家庭成员 =====
+const familyInfo = ref<FamilyInfo>({ familyName: '', members: [], city: '', preparer: '', reviewer: '' })
+
+async function loadFamilyInfo() {
+  try {
+    const settings = await window.electronAPI.getSettings() as { key: string; value: string }[]
+    const info = settings.find(s => s.key === 'family_info')
+    if (info) {
+      const parsed = JSON.parse(info.value) as FamilyInfo
+      familyInfo.value = parsed
+    }
+  } catch { /* ignore */ }
 }
 
 // ===== 筛选条件 =====
@@ -345,9 +392,9 @@ const filters = ref({
 
 // ===== 选项 =====
 const typeOptions = [
-  { value: 'expense' as const, label: '支出', icon: ArrowDownOutlined },
-  { value: 'income' as const, label: '收入', icon: ArrowUpOutlined },
-  { value: 'transfer' as const, label: '转账', icon: SwapOutlined },
+  { value: 'expense' as const, label: '支出', icon: OutcomeSvg },
+  { value: 'income' as const, label: '收入', icon: IncomeSvg },
+  { value: 'transfer' as const, label: '转账', icon: TransferSvg },
 ]
 
 const filterTypeOptions = [
@@ -384,9 +431,9 @@ const columns: DataTableColumn[] = [
   {
     title: '类型', key: 'type', width: 60,
     render: (row: any) => {
-      const icon = row.type === 'income' ? ArrowUpOutlined : row.type === 'expense' ? ArrowDownOutlined : SwapOutlined
-      const color = row.type === 'income' ? '#36B37E' : row.type === 'expense' ? '#FF5630' : '#4C9AFF'
-      return h('span', { style: { color } }, h(icon, { size: 14 }))
+      const icon = row.type === 'income' ? IncomeSvg : row.type === 'expense' ? OutcomeSvg : TransferSvg
+      const cls = row.type === 'transfer' ? '' : amountClass(row.type === 'expense')
+      return h('span', { class: cls }, h('img', { src: icon, width: '14', height: '14' }))
     },
   },
   {
@@ -398,11 +445,26 @@ const columns: DataTableColumn[] = [
     render: (row: any) => getAccountById(row.from_account_id)?.name || '—',
   },
   {
+    title: '成员', key: 'member_name', width: 90,
+    render: (row: any) => {
+      if (!row.member_name) return h('span', { style: { color: 'var(--text-disabled)' } }, '—')
+      const member = getMemberByName(row.member_name)
+      if (!member) return h('span', {}, row.member_name)
+      const avatar = member.avatar
+        ? h('img', { src: member.avatar, style: { width: '22px', height: '22px', borderRadius: '50%', objectFit: 'cover', marginRight: '6px', verticalAlign: 'middle' } })
+        : h('span', { style: { fontSize: '16px', marginRight: '4px' } }, '👤')
+      return h('div', { style: { display: 'flex', alignItems: 'center' } }, [
+        avatar,
+        h('span', { style: { fontSize: '13px' } }, member.name),
+      ])
+    },
+  },
+  {
     title: '金额', key: 'amount', width: 120, align: 'right',
     render: (row: any) => {
       const prefix = row.type === 'income' ? '+' : row.type === 'expense' ? '-' : ''
-      const color = row.type === 'income' ? '#36B37E' : row.type === 'expense' ? '#FF5630' : '#4C9AFF'
-      return h('span', { style: { color, fontWeight: 600, fontVariantNumeric: 'tabular-nums' } }, prefix + currencyPlain(row.amount))
+      const cls = row.type === 'transfer' ? '' : amountClass(row.type === 'expense')
+      return h('span', { class: cls, style: { fontWeight: 600, fontVariantNumeric: 'tabular-nums' } }, prefix + currencyPlain(row.amount))
     },
   },
   {
@@ -435,7 +497,8 @@ const filteredTransactions = computed(() => {
       const desc = (t.description || '').toLowerCase()
       const catName = (getCategoryById(t.category_id ?? 0)?.name || '').toLowerCase()
       const acctName = (getAccountById(t.from_account_id ?? 0)?.name || '').toLowerCase()
-      return desc.includes(q) || catName.includes(q) || acctName.includes(q)
+      const memberName = (t.member_name || '').toLowerCase()
+      return desc.includes(q) || catName.includes(q) || acctName.includes(q) || memberName.includes(q)
     })
   }
 
@@ -505,6 +568,7 @@ function handleEdit(row: Transaction) {
     to_account_id: row.to_account_id,
     date: row.date,
     description: row.description || '',
+    member_name: row.member_name || '',
   }
   showEditModal.value = true
 }
@@ -524,6 +588,7 @@ async function handleEditSubmit() {
         to_account_id: editForm.value.to_account_id,
         category_id: editForm.value.type === 'transfer' ? null : editForm.value.category_id,
         description: editForm.value.description,
+        member_name: editForm.value.type === 'expense' ? editForm.value.member_name : '',
       })
       message.success('修改成功')
       showEditModal.value = false
@@ -550,12 +615,14 @@ async function handleSubmit() {
         category_id: form.value.type === 'transfer' ? null : form.value.category_id,
         description: form.value.description,
         tags: '[]',
+        member_name: form.value.type === 'expense' ? form.value.member_name : '',
       })
       message.success('记账成功')
       form.value.amount = null
       form.value.category_id = null
       form.value.to_account_id = null
       form.value.description = ''
+      form.value.member_name = ''
     } catch {
       message.error('记账失败')
     } finally {

@@ -7,6 +7,8 @@ import { IPC_CHANNELS } from '@shared/types'
 import type { RecognitionConfig, BatchImportParams } from '@shared/types'
 import { exportHTMLToPDF } from './report/export'
 import { recognizeExpenseImage } from './recognition'
+import { copyFileSync, existsSync, mkdirSync } from 'fs'
+import { readFile } from 'fs/promises'
 
 // 设置控制台编码为UTF-8（解决Windows中文乱码问题）
 if (process.platform === 'win32') {
@@ -106,6 +108,86 @@ function registerIpcHandlers() {
   // Batch Add Transactions - 批量导入交易记录
   ipcMain.handle(IPC_CHANNELS.BATCH_ADD_TRANSACTIONS, (_event, params: BatchImportParams) => {
     return ops.batchAddTransactions(params)
+  })
+
+  // Reset Transaction Data - 重置交易记账数据
+  ipcMain.handle(IPC_CHANNELS.RESET_TRANSACTION_DATA, () => {
+    return ops.resetTransactionData()
+  })
+
+  // Database Export - 导出数据库文件
+  ipcMain.handle(IPC_CHANNELS.EXPORT_DATABASE, async () => {
+    const dbPath = join(app.getPath('userData'), 'finance.db')
+    const { canceled, filePath } = await dialog.showSaveDialog({
+      title: '导出数据库备份',
+      defaultPath: `finance_backup_${new Date().toISOString().slice(0, 10)}.db`,
+      filters: [{ name: 'SQLite 数据库', extensions: ['db'] }],
+    })
+    if (canceled || !filePath) return { canceled: true }
+    copyFileSync(dbPath, filePath)
+    return { canceled: false, filePath }
+  })
+
+  // Get Database Path - 获取数据库路径（用于自动备份）
+  ipcMain.handle(IPC_CHANNELS.GET_DATABASE_PATH, () => {
+    return join(app.getPath('userData'), 'finance.db')
+  })
+
+  // Select Directory - 选择目录
+  ipcMain.handle(IPC_CHANNELS.SELECT_DIRECTORY, async () => {
+    const { canceled, filePaths } = await dialog.showOpenDialog({
+      title: '选择备份目录',
+      properties: ['openDirectory'],
+    })
+    if (canceled || filePaths.length === 0) return null
+    return filePaths[0]
+  })
+
+  // Select Image File - 选择图片文件并返回 base64
+  ipcMain.handle(IPC_CHANNELS.SELECT_IMAGE_FILE, async () => {
+    const { canceled, filePaths } = await dialog.showOpenDialog({
+      title: '选择头像图片',
+      filters: [{ name: '图片', extensions: ['png', 'jpg', 'jpeg', 'gif', 'webp'] }],
+      properties: ['openFile'],
+    })
+    if (canceled || filePaths.length === 0) return null
+    const filePath = filePaths[0]
+    const buffer = await readFile(filePath)
+    const ext = filePath.split('.').pop()?.toLowerCase() || 'png'
+    const mime = ext === 'jpg' ? 'jpeg' : ext
+    return `data:image/${mime};base64,${buffer.toString('base64')}`
+  })
+
+  // Backup Config - 获取/更新备份配置
+  ipcMain.handle(IPC_CHANNELS.GET_BACKUP_CONFIG, () => {
+    return {
+      enabled: ops.getSetting('backup_enabled') === 'true',
+      directory: ops.getSetting('backup_directory') || '',
+      frequency: ops.getSetting('backup_frequency') || 'weekly',
+    }
+  })
+
+  ipcMain.handle(IPC_CHANNELS.UPDATE_BACKUP_CONFIG, (_event, config: { enabled: boolean; directory: string; frequency: string }) => {
+    ops.updateSetting('backup_enabled', String(config.enabled))
+    ops.updateSetting('backup_directory', config.directory)
+    ops.updateSetting('backup_frequency', config.frequency)
+    return { success: true }
+  })
+
+  // Run Backup - 执行自动备份
+  ipcMain.handle(IPC_CHANNELS.RUN_BACKUP, async () => {
+    const enabled = ops.getSetting('backup_enabled') === 'true'
+    const directory = ops.getSetting('backup_directory') || ''
+    if (!enabled || !directory) return { success: false, reason: '自动备份未启用或未设置目录' }
+    const dbPath = join(app.getPath('userData'), 'finance.db')
+    const backupDir = directory
+    if (!existsSync(backupDir)) {
+      mkdirSync(backupDir, { recursive: true })
+    }
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)
+    const destPath = join(backupDir, `finance_auto_backup_${timestamp}.db`)
+    copyFileSync(dbPath, destPath)
+    return { success: true, filePath: destPath }
   })
 }
 

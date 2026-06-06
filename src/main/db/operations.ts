@@ -92,23 +92,23 @@ export function syncBalance(params: SyncBalanceParams): { account: Account; snap
       if (account.type === 'asset') {
         if (txType === 'income') {
           db.prepare(
-            'INSERT INTO transactions (date, type, amount, from_account_id, to_account_id, category_id, description, tags) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
-          ).run(now.slice(0, 10), 'income', absDiff, null, params.account_id, null, params.note || '余额同步差额', '["余额同步"]')
+            'INSERT INTO transactions (date, type, amount, from_account_id, to_account_id, category_id, description, tags, member_name) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
+          ).run(now.slice(0, 10), 'income', absDiff, null, params.account_id, null, params.note || '余额同步差额', '["余额同步"]', '')
         } else {
           db.prepare(
-            'INSERT INTO transactions (date, type, amount, from_account_id, to_account_id, category_id, description, tags) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
-          ).run(now.slice(0, 10), 'expense', absDiff, params.account_id, null, null, params.note || '余额同步差额', '["余额同步"]')
+            'INSERT INTO transactions (date, type, amount, from_account_id, to_account_id, category_id, description, tags, member_name) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
+          ).run(now.slice(0, 10), 'expense', absDiff, params.account_id, null, null, params.note || '余额同步差额', '["余额同步"]', '')
         }
       } else {
         // 负债账户
         if (txType === 'income') {
           db.prepare(
-            'INSERT INTO transactions (date, type, amount, from_account_id, to_account_id, category_id, description, tags) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
-          ).run(now.slice(0, 10), 'income', absDiff, null, null, null, params.note || '余额同步差额', '["余额同步"]')
+            'INSERT INTO transactions (date, type, amount, from_account_id, to_account_id, category_id, description, tags, member_name) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
+          ).run(now.slice(0, 10), 'income', absDiff, null, null, null, params.note || '余额同步差额', '["余额同步"]', '')
         } else {
           db.prepare(
-            'INSERT INTO transactions (date, type, amount, from_account_id, to_account_id, category_id, description, tags) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
-          ).run(now.slice(0, 10), 'expense', absDiff, null, null, null, params.note || '余额同步差额', '["余额同步"]')
+            'INSERT INTO transactions (date, type, amount, from_account_id, to_account_id, category_id, description, tags, member_name) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
+          ).run(now.slice(0, 10), 'expense', absDiff, null, null, null, params.note || '余额同步差额', '["余额同步"]', '')
         }
       }
     }
@@ -162,8 +162,8 @@ export function addTransaction(tx: Omit<Transaction, 'id'>): Transaction {
 
   const insertAndBalance = db.transaction(() => {
     const result = db.prepare(
-      'INSERT INTO transactions (date, type, amount, from_account_id, to_account_id, category_id, description, tags) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
-    ).run(tx.date, tx.type, tx.amount, tx.from_account_id, tx.to_account_id, tx.category_id, tx.description, tx.tags)
+      'INSERT INTO transactions (date, type, amount, from_account_id, to_account_id, category_id, description, tags, member_name) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
+    ).run(tx.date, tx.type, tx.amount, tx.from_account_id, tx.to_account_id, tx.category_id, tx.description, tx.tags, tx.member_name || '')
 
     const amount = new Decimal(tx.amount)
 
@@ -248,6 +248,7 @@ export function updateTransaction(id: number, updates: Partial<Transaction>): Tr
     if (updates.category_id !== undefined) { fields.push('category_id = ?'); values.push(updates.category_id) }
     if (updates.description !== undefined) { fields.push('description = ?'); values.push(updates.description) }
     if (updates.tags !== undefined) { fields.push('tags = ?'); values.push(updates.tags) }
+    if (updates.member_name !== undefined) { fields.push('member_name = ?'); values.push(updates.member_name) }
 
     if (fields.length > 0) {
       values.push(id)
@@ -331,6 +332,74 @@ export function deleteTransaction(id: number): void {
   deleteAndReverse()
 }
 
+/** 重置交易记账数据（清空交易记录、余额快照、净资产快照和投资快照，并重置分类为新的12种） */
+export function resetTransactionData(): { transactionsDeleted: number; snapshotsDeleted: number; netWorthDeleted: number; investmentDeleted: number } {
+  const db = getDatabase()
+
+  const resetInTransaction = db.transaction(() => {
+    // 统计要删除的记录数
+    const txCount = (db.prepare('SELECT COUNT(*) as cnt FROM transactions').get() as { cnt: number }).cnt
+    const snapshotCount = (db.prepare('SELECT COUNT(*) as cnt FROM balance_snapshots').get() as { cnt: number }).cnt
+    const netWorthCount = (db.prepare('SELECT COUNT(*) as cnt FROM net_worth_snapshots').get() as { cnt: number }).cnt
+    const investmentCount = (db.prepare('SELECT COUNT(*) as cnt FROM investment_snapshots').get() as { cnt: number }).cnt
+
+    // 清空交易记录
+    db.prepare('DELETE FROM transactions').run()
+    // 清空余额快照
+    db.prepare('DELETE FROM balance_snapshots').run()
+    // 清空净资产快照（衍生数据，交易清空后应同步清空）
+    db.prepare('DELETE FROM net_worth_snapshots').run()
+    // 清空投资市值快照（衍生数据，交易清空后应同步清空）
+    db.prepare('DELETE FROM investment_snapshots').run()
+
+    // 重置分类为新的12种分类
+    db.prepare('DELETE FROM categories').run()
+
+    const newCategories = [
+      { id: 1, name: '居住与房贷', icon: 'home', nature: 'fixed', cfType: 'financing' },
+      { id: 2, name: '水电燃气与通讯', icon: 'zap', nature: 'fixed', cfType: 'operating' },
+      { id: 3, name: '餐饮与食品', icon: 'restaurant', nature: 'variable', cfType: 'operating' },
+      { id: 4, name: '交通与车辆养护', icon: 'car', nature: 'variable', cfType: 'operating' },
+      { id: 5, name: '教育与自我提升', icon: 'book', nature: 'variable', cfType: 'operating' },
+      { id: 6, name: '医疗与健康', icon: 'medical', nature: 'variable', cfType: 'operating' },
+      { id: 7, name: '服饰与个人形象', icon: 'shirt', nature: 'variable', cfType: 'operating' },
+      { id: 8, name: '家居日用与耐用品', icon: 'cart', nature: 'variable', cfType: 'operating' },
+      { id: 9, name: '休闲娱乐与社交', icon: 'gamepad', nature: 'variable', cfType: 'operating' },
+      { id: 10, name: '宠物支出', icon: 'heart', nature: 'variable', cfType: 'operating' },
+      { id: 11, name: '金融与保险支出', icon: 'shield', nature: 'fixed', cfType: 'financing' },
+      { id: 12, name: '其他与杂项', icon: 'gift', nature: 'variable', cfType: 'operating' },
+      { id: 13, name: '工资', icon: 'cash', nature: '', cfType: 'operating' },
+      { id: 14, name: '投资收益', icon: 'trending-up', nature: '', cfType: 'investing' },
+      { id: 15, name: '兼职收入', icon: 'briefcase', nature: '', cfType: 'operating' },
+      { id: 16, name: '利息收入', icon: 'percent', nature: '', cfType: 'investing' },
+      { id: 17, name: '其他收入', icon: 'gift', nature: '', cfType: 'operating' },
+      { id: 18, name: '公积金提取', icon: 'bank', nature: '', cfType: 'financing' },
+      { id: 19, name: '奖金', icon: 'trophy', nature: '', cfType: 'operating' },
+    ]
+
+    const insertCat = db.prepare('INSERT INTO categories (id, name, type, icon, expense_nature, cashflow_type) VALUES (?, ?, ?, ?, ?, ?)')
+    for (const cat of newCategories) {
+      const type = cat.id <= 12 ? 'expense' : 'income'
+      insertCat.run(cat.id, cat.name, type, cat.icon, cat.nature, cat.cfType)
+    }
+
+    // 重置自增ID序列
+    try {
+      db.prepare("UPDATE sqlite_sequence SET seq = 19 WHERE name = 'categories'").run()
+      db.prepare("UPDATE sqlite_sequence SET seq = 0 WHERE name = 'transactions'").run()
+      db.prepare("UPDATE sqlite_sequence SET seq = 0 WHERE name = 'balance_snapshots'").run()
+      db.prepare("UPDATE sqlite_sequence SET seq = 0 WHERE name = 'net_worth_snapshots'").run()
+      db.prepare("UPDATE sqlite_sequence SET seq = 0 WHERE name = 'investment_snapshots'").run()
+    } catch {
+      // sqlite_sequence 表可能不存在，忽略
+    }
+
+    return { transactionsDeleted: txCount, snapshotsDeleted: snapshotCount, netWorthDeleted: netWorthCount, investmentDeleted: investmentCount }
+  })
+
+  return resetInTransaction()
+}
+
 /** 批量导入参数 */
 export interface BatchImportParams {
   items: {
@@ -358,11 +427,12 @@ export function batchAddTransactions(params: BatchImportParams): Transaction[] {
         category_id: item.category_id,
         description: item.description,
         tags: '["截图导入"]',
+        member_name: item.member_name || '',
       }
 
       const result = db.prepare(
-        'INSERT INTO transactions (date, type, amount, from_account_id, to_account_id, category_id, description, tags) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
-      ).run(tx.date, tx.type, tx.amount, tx.from_account_id, tx.to_account_id, tx.category_id, tx.description, tx.tags)
+        'INSERT INTO transactions (date, type, amount, from_account_id, to_account_id, category_id, description, tags, member_name) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
+      ).run(tx.date, tx.type, tx.amount, tx.from_account_id, tx.to_account_id, tx.category_id, tx.description, tx.tags, tx.member_name)
 
       // 更新账户余额（如果是精确同步模式）
       if (tx.from_account_id && isExactSync(db, tx.from_account_id)) {
@@ -691,10 +761,10 @@ export function generateQuarterlyReport(year: number, quarter: number): Quarterl
   const monthlyIncome = totalIncome / 3
   const liquidForKPI = liquidTotal + investmentTotal * 0.3
 
-  // 房贷月供
+  // 房贷月供（居住与房贷分类）
   const mortgageTx = expenseTx.filter(t => {
     const cat = catMap.get(t.category_id ?? -1)
-    return cat?.name === '房贷还款'
+    return cat?.name === '居住与房贷'
   })
   const mortgageMonthly = mortgageTx.length > 0
     ? mortgageTx.reduce((s, t) => s + Number(t.amount), 0) / 3

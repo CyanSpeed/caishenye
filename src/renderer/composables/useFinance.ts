@@ -1,6 +1,6 @@
 import { reactive, computed } from 'vue'
 import Decimal from 'decimal.js'
-import type { Account, Transaction, InvestmentSnapshot, Category, PhysicalAsset, BalanceSnapshot, BatchImportParams } from '@shared/types'
+import type { Account, Transaction, InvestmentSnapshot, Category, PhysicalAsset, BalanceSnapshot, BatchImportParams, FamilyInfo, FamilyMember } from '@shared/types'
 
 interface FinanceState {
   accounts: Account[]
@@ -9,6 +9,7 @@ interface FinanceState {
   categories: Category[]
   physicalAssets: PhysicalAsset[]
   initialized: boolean
+  familyMembers: FamilyMember[]
 }
 
 const state = reactive<FinanceState>({
@@ -18,6 +19,7 @@ const state = reactive<FinanceState>({
   categories: [],
   physicalAssets: [],
   initialized: false,
+  familyMembers: [],
 })
 
 let initPromise: Promise<void> | null = null
@@ -28,18 +30,29 @@ async function init() {
 
   initPromise = (async () => {
     const api = window.electronAPI
-    const [accounts, transactions, snapshots, categories, physicalAssets] = await Promise.all([
+    const [accounts, transactions, snapshots, categories, physicalAssets, settings] = await Promise.all([
       api.getAccounts(),
       api.getTransactions(),
       api.getInvestmentSnapshots(),
       api.getCategories(),
       api.getPhysicalAssets(),
+      api.getSettings(),
     ])
     state.accounts = accounts as Account[]
     state.transactions = transactions as Transaction[]
     state.snapshots = snapshots as InvestmentSnapshot[]
     state.categories = categories as Category[]
     state.physicalAssets = physicalAssets as PhysicalAsset[]
+
+    // Load family members
+    const info = (settings as { key: string; value: string }[]).find(s => s.key === 'family_info')
+    if (info) {
+      try {
+        const parsed = JSON.parse(info.value) as FamilyInfo
+        state.familyMembers = parsed.members || []
+      } catch { /* ignore */ }
+    }
+
     state.initialized = true
   })()
 
@@ -528,6 +541,26 @@ export function useFinance() {
     return await window.electronAPI.getBalanceSnapshots(accountId) as BalanceSnapshot[]
   }
 
+  // ---- Family Members ----
+  const memberOptions = computed(() =>
+    state.familyMembers.map(m => ({ label: m.name + ' (' + m.role + ')', value: m.name }))
+  )
+
+  function getMemberByName(name: string): FamilyMember | undefined {
+    return state.familyMembers.find(m => m.name === name)
+  }
+
+  async function loadFamilyMembers() {
+    try {
+      const settings = await window.electronAPI.getSettings() as { key: string; value: string }[]
+      const info = settings.find(s => s.key === 'family_info')
+      if (info) {
+        const parsed = JSON.parse(info.value) as FamilyInfo
+        state.familyMembers = parsed.members || []
+      }
+    } catch { /* ignore */ }
+  }
+
   return {
     state,
     init,
@@ -568,5 +601,8 @@ export function useFinance() {
     deletePhysicalAsset,
     syncBalance,
     getBalanceSnapshots,
+    memberOptions,
+    getMemberByName,
+    loadFamilyMembers,
   }
 }

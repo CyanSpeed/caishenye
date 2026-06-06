@@ -50,6 +50,23 @@ const api = {
     ipcRenderer.invoke(IPC_CHANNELS.RECOGNIZE_EXPENSE_IMAGE, imageBase64, config),
   batchAddTransactions: (params: BatchImportParams) =>
     ipcRenderer.invoke(IPC_CHANNELS.BATCH_ADD_TRANSACTIONS, params),
+
+  // Reset
+  resetTransactionData: () => ipcRenderer.invoke(IPC_CHANNELS.RESET_TRANSACTION_DATA),
+
+  // Database Export
+  exportDatabase: () => ipcRenderer.invoke(IPC_CHANNELS.EXPORT_DATABASE),
+  getDatabasePath: () => ipcRenderer.invoke(IPC_CHANNELS.GET_DATABASE_PATH),
+
+  // File Dialog
+  selectImageFile: () => ipcRenderer.invoke(IPC_CHANNELS.SELECT_IMAGE_FILE),
+  selectDirectory: () => ipcRenderer.invoke(IPC_CHANNELS.SELECT_DIRECTORY),
+
+  // Auto Backup
+  getBackupConfig: () => ipcRenderer.invoke(IPC_CHANNELS.GET_BACKUP_CONFIG),
+  updateBackupConfig: (config: { enabled: boolean; directory: string; frequency: string }) =>
+    ipcRenderer.invoke(IPC_CHANNELS.UPDATE_BACKUP_CONFIG, config),
+  runBackup: () => ipcRenderer.invoke(IPC_CHANNELS.RUN_BACKUP),
 }
 
 contextBridge.exposeInMainWorld('electronAPI', api)

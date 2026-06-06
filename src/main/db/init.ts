@@ -72,6 +72,7 @@ function createTables(db: Database.Database) {
       category_id INTEGER,
       description TEXT DEFAULT '',
       tags TEXT DEFAULT '[]',
+      member_name TEXT DEFAULT '',
       FOREIGN KEY (from_account_id) REFERENCES accounts(id),
       FOREIGN KEY (to_account_id) REFERENCES accounts(id),
       FOREIGN KEY (category_id) REFERENCES categories(id)
@@ -129,6 +130,7 @@ function migrateDatabase(db: Database.Database) {
   addColumnIfNotExists('accounts', 'last_synced_at', "TEXT DEFAULT NULL")
   addColumnIfNotExists('categories', 'expense_nature', "TEXT DEFAULT ''")
   addColumnIfNotExists('categories', 'cashflow_type', "TEXT DEFAULT 'operating'")
+  addColumnIfNotExists('transactions', 'member_name', "TEXT DEFAULT ''")
 
   // 迁移：physical_assets 表的 CHECK 约束添加 '房产' 分类
   // SQLite 不支持修改 CHECK 约束，需要重建表
@@ -160,15 +162,6 @@ function migrateDatabase(db: Database.Database) {
     // 迁移已执行或表不存在，忽略
   }
 
-  // 迁移：添加新的收入分类
-  const insertCategoryIfNotExists = (id: number, name: string, type: string, icon: string, expenseNature: string, cashflowType: string) => {
-    const exists = db.prepare('SELECT id FROM categories WHERE id = ?').get(id)
-    if (!exists) {
-      db.prepare('INSERT INTO categories (id, name, type, icon, expense_nature, cashflow_type) VALUES (?, ?, ?, ?, ?, ?)').run(id, name, type, icon, expenseNature, cashflowType)
-    }
-  }
-  insertCategoryIfNotExists(18, '公积金提取', 'income', 'bank', '', 'financing')
-  insertCategoryIfNotExists(19, '奖金', 'income', 'trophy', '', 'operating')
 }
 
 function seedIfEmpty(db: Database.Database) {
@@ -183,8 +176,8 @@ function seedIfEmpty(db: Database.Database) {
     INSERT INTO categories (id, name, type, icon, expense_nature, cashflow_type) VALUES (?, ?, ?, ?, ?, ?)
   `)
   const seedTransactions = db.prepare(`
-    INSERT INTO transactions (id, date, type, amount, from_account_id, to_account_id, category_id, description, tags)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO transactions (id, date, type, amount, from_account_id, to_account_id, category_id, description, tags, member_name)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `)
   const seedSnapshots = db.prepare(`
     INSERT INTO investment_snapshots (id, account_id, date, market_value, cost_basis, note)
@@ -219,19 +212,19 @@ function seedIfEmpty(db: Database.Database) {
     seedAccounts.run(12, '花呗', 'liability', 'credit', '3200.00', 'CNY', 1, '每月20日自动还款', '3200.00', 'exact', '2026-06-01')
 
     // ========== Categories ==========
-    // 支出分类
-    seedCategories.run(1, '餐饮', 'expense', 'restaurant', 'variable', 'operating')
-    seedCategories.run(2, '交通', 'expense', 'car', 'variable', 'operating')
-    seedCategories.run(3, '购物', 'expense', 'cart', 'variable', 'operating')
-    seedCategories.run(4, '房贷还款', 'expense', 'home', 'fixed', 'financing')
-    seedCategories.run(5, '娱乐', 'expense', 'gamepad', 'variable', 'operating')
-    seedCategories.run(6, '医疗', 'expense', 'medical', 'variable', 'operating')
-    seedCategories.run(7, '子女教育', 'expense', 'book', 'variable', 'operating')
-    seedCategories.run(8, '物业水电', 'expense', 'zap', 'fixed', 'operating')
-    seedCategories.run(9, '通讯费', 'expense', 'wifi', 'fixed', 'operating')
-    seedCategories.run(10, '保险费', 'expense', 'shield', 'fixed', 'investing')
-    seedCategories.run(11, '车贷还款', 'expense', 'car', 'fixed', 'financing')
-    seedCategories.run(12, '投资定投', 'expense', 'trending-up', 'variable', 'investing')
+    // 支出分类（新的12种分类）
+    seedCategories.run(1, '居住与房贷', 'expense', 'home', 'fixed', 'financing')
+    seedCategories.run(2, '水电燃气与通讯', 'expense', 'zap', 'fixed', 'operating')
+    seedCategories.run(3, '餐饮与食品', 'expense', 'restaurant', 'variable', 'operating')
+    seedCategories.run(4, '交通与车辆养护', 'expense', 'car', 'variable', 'operating')
+    seedCategories.run(5, '教育与自我提升', 'expense', 'book', 'variable', 'operating')
+    seedCategories.run(6, '医疗与健康', 'expense', 'medical', 'variable', 'operating')
+    seedCategories.run(7, '服饰与个人形象', 'expense', 'shirt', 'variable', 'operating')
+    seedCategories.run(8, '家居日用与耐用品', 'expense', 'cart', 'variable', 'operating')
+    seedCategories.run(9, '休闲娱乐与社交', 'expense', 'gamepad', 'variable', 'operating')
+    seedCategories.run(10, '宠物支出', 'expense', 'heart', 'variable', 'operating')
+    seedCategories.run(11, '金融与保险支出', 'expense', 'shield', 'fixed', 'financing')
+    seedCategories.run(12, '其他与杂项', 'expense', 'gift', 'variable', 'operating')
     // 收入分类
     seedCategories.run(13, '工资', 'income', 'cash', '', 'operating')
     seedCategories.run(14, '投资收益', 'income', 'trending-up', '', 'investing')
@@ -245,9 +238,9 @@ function seedIfEmpty(db: Database.Database) {
     seedSettings.run('family_info', JSON.stringify({
       familyName: '张先生家庭',
       members: [
-        { name: '张先生', role: '户主', age: 35 },
-        { name: '李女士', role: '配偶', age: 33 },
-        { name: '张小明', role: '子女', age: 6 }
+        { name: '张先生', role: '户主', age: 35, avatar: '' },
+        { name: '李女士', role: '配偶', age: 33, avatar: '' },
+        { name: '张小明', role: '子女', age: 6, avatar: '' }
       ],
       city: '上海',
       preparer: '李女士 (家庭CFO)',
@@ -261,81 +254,84 @@ function seedIfEmpty(db: Database.Database) {
 
     // ========== Transactions ==========
     // ---- 2026年1月 ----
-    seedTransactions.run(1, '2026-01-03', 'income', '28500.00', null, 3, 13, '12月工资', '["工资","固定收入"]')
-    seedTransactions.run(2, '2026-01-05', 'expense', '6500.00', 2, null, 4, '1月房贷月供', '["住房","贷款"]')
-    seedTransactions.run(3, '2026-01-05', 'transfer', '5000.00', 3, 4, null, '转入支付宝日常使用', '["转账","内部"]')
-    seedTransactions.run(4, '2026-01-06', 'expense', '3200.00', 2, null, 11, '车贷月供', '["车贷","固定支出"]')
-    seedTransactions.run(5, '2026-01-08', 'expense', '420.00', 2, null, 8, '物业费+水电煤', '["住房","物业"]')
-    seedTransactions.run(6, '2026-01-08', 'expense', '150.00', 4, null, 9, '手机+宽带费', '["通讯","固定"]')
-    seedTransactions.run(7, '2026-01-10', 'expense', '850.00', 4, null, 1, '超市采购年货食材', '["餐饮","日常"]')
-    seedTransactions.run(8, '2026-01-12', 'expense', '380.00', 2, null, 2, '加油', '["交通","汽车"]')
-    seedTransactions.run(9, '2026-01-12', 'expense', '280.00', 4, null, 5, '电影+奶茶', '["娱乐","社交"]')
-    seedTransactions.run(10, '2026-01-14', 'expense', '2000.00', 2, null, 7, '孩子寒假兴趣班', '["教育","兴趣班"]')
-    seedTransactions.run(11, '2026-01-15', 'expense', '3000.00', 2, null, 12, '基金定投', '["投资","定投"]')
-    seedTransactions.run(12, '2026-01-18', 'expense', '1500.00', 4, null, 3, '年货购物', '["购物","年货"]')
-    seedTransactions.run(13, '2026-01-20', 'transfer', '4500.00', 2, 11, null, '还信用卡', '["转账","还款"]')
-    seedTransactions.run(14, '2026-01-20', 'transfer', '2800.00', 2, 12, null, '还花呗', '["转账","还款"]')
-    seedTransactions.run(15, '2026-01-22', 'expense', '450.00', 4, null, 1, '朋友聚餐', '["餐饮","社交"]')
-    seedTransactions.run(16, '2026-01-25', 'expense', '1200.00', 2, null, 3, '冬装采购', '["购物","服装"]')
-    seedTransactions.run(17, '2026-01-28', 'income', '1050.00', null, 6, 14, '股票分红', '["投资","分红"]')
+    // 分类ID映射: 1=居住与房贷, 2=水电燃气与通讯, 3=餐饮与食品, 4=交通与车辆养护,
+    // 5=教育与自我提升, 6=医疗与健康, 7=服饰与个人形象, 8=家居日用与耐用品,
+    // 9=休闲娱乐与社交, 10=宠物支出, 11=金融与保险支出, 12=其他与杂项
+    seedTransactions.run(1, '2026-01-03', 'income', '28500.00', null, 3, 13, '12月工资', '["工资","固定收入"]', '')
+    seedTransactions.run(2, '2026-01-05', 'expense', '6500.00', 2, null, 1, '1月房贷月供', '["居住","房贷"]', '')
+    seedTransactions.run(3, '2026-01-05', 'transfer', '5000.00', 3, 4, null, '转入支付宝日常使用', '["转账","内部"]', '')
+    seedTransactions.run(4, '2026-01-06', 'expense', '3200.00', 2, null, 4, '车贷月供', '["交通","车贷"]', '')
+    seedTransactions.run(5, '2026-01-08', 'expense', '420.00', 2, null, 2, '物业费+水电煤', '["水电燃气","物业"]', '')
+    seedTransactions.run(6, '2026-01-08', 'expense', '150.00', 4, null, 2, '手机+宽带费', '["通讯","固定"]', '')
+    seedTransactions.run(7, '2026-01-10', 'expense', '850.00', 4, null, 3, '超市采购年货食材', '["餐饮","日常"]', '李女士')
+    seedTransactions.run(8, '2026-01-12', 'expense', '380.00', 2, null, 4, '加油', '["交通","汽车"]', '张先生')
+    seedTransactions.run(9, '2026-01-12', 'expense', '280.00', 4, null, 9, '电影+奶茶', '["娱乐","社交"]', '李女士')
+    seedTransactions.run(10, '2026-01-14', 'expense', '2000.00', 2, null, 5, '孩子寒假兴趣班', '["教育","兴趣班"]', '张小明')
+    seedTransactions.run(11, '2026-01-15', 'expense', '3000.00', 2, null, 11, '基金定投', '["金融","定投"]', '张先生')
+    seedTransactions.run(12, '2026-01-18', 'expense', '1500.00', 4, null, 8, '年货购物', '["家居日用","年货"]', '李女士')
+    seedTransactions.run(13, '2026-01-20', 'transfer', '4500.00', 2, 11, null, '还信用卡', '["转账","还款"]', '')
+    seedTransactions.run(14, '2026-01-20', 'transfer', '2800.00', 2, 12, null, '还花呗', '["转账","还款"]', '')
+    seedTransactions.run(15, '2026-01-22', 'expense', '450.00', 4, null, 3, '朋友聚餐', '["餐饮","社交"]', '张先生')
+    seedTransactions.run(16, '2026-01-25', 'expense', '1200.00', 2, null, 7, '冬装采购', '["服饰","服装"]', '张先生')
+    seedTransactions.run(17, '2026-01-28', 'income', '1050.00', null, 6, 14, '股票分红', '["投资","分红"]', '')
 
     // ---- 2026年2月 ----
-    seedTransactions.run(18, '2026-02-03', 'income', '28500.00', null, 3, 13, '1月工资', '["工资","固定收入"]')
-    seedTransactions.run(19, '2026-02-05', 'expense', '6500.00', 2, null, 4, '2月房贷月供', '["住房","贷款"]')
-    seedTransactions.run(20, '2026-02-05', 'transfer', '5000.00', 3, 4, null, '转入支付宝日常使用', '["转账","内部"]')
-    seedTransactions.run(21, '2026-02-06', 'expense', '3200.00', 2, null, 11, '车贷月供', '["车贷","固定支出"]')
-    seedTransactions.run(22, '2026-02-08', 'expense', '380.00', 2, null, 8, '物业费+水电煤', '["住房","物业"]')
-    seedTransactions.run(23, '2026-02-08', 'expense', '150.00', 4, null, 9, '手机+宽带费', '["通讯","固定"]')
-    seedTransactions.run(24, '2026-02-10', 'expense', '720.00', 4, null, 1, '超市采购食材', '["餐饮","日常"]')
-    seedTransactions.run(25, '2026-02-12', 'expense', '460.00', 2, null, 2, '加油+过路费', '["交通","汽车"]')
-    seedTransactions.run(26, '2026-02-14', 'expense', '580.00', 4, null, 5, '情人节晚餐+礼物', '["娱乐","节日"]')
-    seedTransactions.run(27, '2026-02-15', 'expense', '3000.00', 2, null, 12, '基金定投', '["投资","定投"]')
-    seedTransactions.run(28, '2026-02-18', 'expense', '1500.00', 2, null, 7, '孩子开学学费', '["教育","学费"]')
-    seedTransactions.run(29, '2026-02-20', 'transfer', '5200.00', 2, 11, null, '还信用卡', '["转账","还款"]')
-    seedTransactions.run(30, '2026-02-20', 'transfer', '1800.00', 2, 12, null, '还花呗', '["转账","还款"]')
-    seedTransactions.run(31, '2026-02-22', 'expense', '650.00', 4, null, 1, '周末家庭聚餐', '["餐饮","社交"]')
-    seedTransactions.run(32, '2026-02-25', 'expense', '200.00', 4, null, 5, '视频会员续费', '["娱乐","订阅"]')
-    seedTransactions.run(33, '2026-02-26', 'income', '2000.00', null, 4, 15, '周末培训讲课费', '["兼职","培训"]')
-    seedTransactions.run(34, '2026-02-28', 'expense', '350.00', 2, null, 6, '感冒看诊+药费', '["医疗","健康"]')
+    seedTransactions.run(18, '2026-02-03', 'income', '28500.00', null, 3, 13, '1月工资', '["工资","固定收入"]', '')
+    seedTransactions.run(19, '2026-02-05', 'expense', '6500.00', 2, null, 1, '2月房贷月供', '["居住","房贷"]', '')
+    seedTransactions.run(20, '2026-02-05', 'transfer', '5000.00', 3, 4, null, '转入支付宝日常使用', '["转账","内部"]', '')
+    seedTransactions.run(21, '2026-02-06', 'expense', '3200.00', 2, null, 4, '车贷月供', '["交通","车贷"]', '')
+    seedTransactions.run(22, '2026-02-08', 'expense', '380.00', 2, null, 2, '物业费+水电煤', '["水电燃气","物业"]', '')
+    seedTransactions.run(23, '2026-02-08', 'expense', '150.00', 4, null, 2, '手机+宽带费', '["通讯","固定"]', '')
+    seedTransactions.run(24, '2026-02-10', 'expense', '720.00', 4, null, 3, '超市采购食材', '["餐饮","日常"]', '李女士')
+    seedTransactions.run(25, '2026-02-12', 'expense', '460.00', 2, null, 4, '加油+过路费', '["交通","汽车"]', '张先生')
+    seedTransactions.run(26, '2026-02-14', 'expense', '580.00', 4, null, 9, '情人节晚餐+礼物', '["娱乐","节日"]', '张先生')
+    seedTransactions.run(27, '2026-02-15', 'expense', '3000.00', 2, null, 11, '基金定投', '["金融","定投"]', '张先生')
+    seedTransactions.run(28, '2026-02-18', 'expense', '1500.00', 2, null, 5, '孩子开学学费', '["教育","学费"]', '张小明')
+    seedTransactions.run(29, '2026-02-20', 'transfer', '5200.00', 2, 11, null, '还信用卡', '["转账","还款"]', '')
+    seedTransactions.run(30, '2026-02-20', 'transfer', '1800.00', 2, 12, null, '还花呗', '["转账","还款"]', '')
+    seedTransactions.run(31, '2026-02-22', 'expense', '650.00', 4, null, 3, '周末家庭聚餐', '["餐饮","社交"]', '李女士')
+    seedTransactions.run(32, '2026-02-25', 'expense', '200.00', 4, null, 9, '视频会员续费', '["娱乐","订阅"]', '张先生')
+    seedTransactions.run(33, '2026-02-26', 'income', '2000.00', null, 4, 15, '周末培训讲课费', '["兼职","培训"]', '')
+    seedTransactions.run(34, '2026-02-28', 'expense', '350.00', 2, null, 6, '感冒看诊+药费', '["医疗","健康"]', '张小明')
 
     // ---- 2026年3月 ----
-    seedTransactions.run(35, '2026-03-03', 'income', '28500.00', null, 3, 13, '2月工资', '["工资","固定收入"]')
-    seedTransactions.run(36, '2026-03-05', 'expense', '6500.00', 2, null, 4, '3月房贷月供', '["住房","贷款"]')
-    seedTransactions.run(37, '2026-03-05', 'transfer', '5000.00', 3, 4, null, '转入支付宝日常使用', '["转账","内部"]')
-    seedTransactions.run(38, '2026-03-06', 'expense', '3200.00', 2, null, 11, '车贷月供', '["车贷","固定支出"]')
-    seedTransactions.run(39, '2026-03-08', 'expense', '450.00', 2, null, 8, '物业费+水电煤', '["住房","物业"]')
-    seedTransactions.run(40, '2026-03-08', 'expense', '150.00', 4, null, 9, '手机+宽带费', '["通讯","固定"]')
-    seedTransactions.run(41, '2026-03-10', 'expense', '900.00', 4, null, 1, '超市采购+外卖', '["餐饮","日常"]')
-    seedTransactions.run(42, '2026-03-10', 'expense', '4500.00', 2, null, 10, '季度保险费（重疾险+车险）', '["保险","季度"]')
-    seedTransactions.run(43, '2026-03-12', 'expense', '350.00', 2, null, 2, '加油', '["交通","汽车"]')
-    seedTransactions.run(44, '2026-03-15', 'expense', '3000.00', 2, null, 12, '基金定投', '["投资","定投"]')
-    seedTransactions.run(45, '2026-03-16', 'expense', '800.00', 4, null, 3, '日用品采购', '["购物","日用"]')
-    seedTransactions.run(46, '2026-03-18', 'expense', '2000.00', 2, null, 7, '孩子兴趣班续费', '["教育","兴趣班"]')
-    seedTransactions.run(47, '2026-03-20', 'transfer', '4800.00', 2, 11, null, '还信用卡', '["转账","还款"]')
-    seedTransactions.run(48, '2026-03-20', 'transfer', '2200.00', 2, 12, null, '还花呗', '["转账","还款"]')
-    seedTransactions.run(49, '2026-03-22', 'expense', '500.00', 4, null, 1, '周末外出就餐', '["餐饮","社交"]')
-    seedTransactions.run(50, '2026-03-25', 'expense', '300.00', 4, null, 5, '电影票', '["娱乐","休闲"]')
-    seedTransactions.run(51, '2026-03-28', 'income', '1800.00', null, 6, 14, '股票分红', '["投资","分红"]')
-    seedTransactions.run(52, '2026-03-29', 'income', '500.00', null, 2, 16, '定期存款利息', '["利息","存款"]')
-    seedTransactions.run(53, '2026-03-30', 'expense', '400.00', 2, null, 6, '年度体检', '["医疗","体检"]')
+    seedTransactions.run(35, '2026-03-03', 'income', '28500.00', null, 3, 13, '2月工资', '["工资","固定收入"]', '')
+    seedTransactions.run(36, '2026-03-05', 'expense', '6500.00', 2, null, 1, '3月房贷月供', '["居住","房贷"]', '')
+    seedTransactions.run(37, '2026-03-05', 'transfer', '5000.00', 3, 4, null, '转入支付宝日常使用', '["转账","内部"]', '')
+    seedTransactions.run(38, '2026-03-06', 'expense', '3200.00', 2, null, 4, '车贷月供', '["交通","车贷"]', '')
+    seedTransactions.run(39, '2026-03-08', 'expense', '450.00', 2, null, 2, '物业费+水电煤', '["水电燃气","物业"]', '')
+    seedTransactions.run(40, '2026-03-08', 'expense', '150.00', 4, null, 2, '手机+宽带费', '["通讯","固定"]', '')
+    seedTransactions.run(41, '2026-03-10', 'expense', '900.00', 4, null, 3, '超市采购+外卖', '["餐饮","日常"]', '李女士')
+    seedTransactions.run(42, '2026-03-10', 'expense', '4500.00', 2, null, 11, '季度保险费（重疾险+车险）', '["金融","保险"]', '')
+    seedTransactions.run(43, '2026-03-12', 'expense', '350.00', 2, null, 4, '加油', '["交通","汽车"]', '张先生')
+    seedTransactions.run(44, '2026-03-15', 'expense', '3000.00', 2, null, 11, '基金定投', '["金融","定投"]', '张先生')
+    seedTransactions.run(45, '2026-03-16', 'expense', '800.00', 4, null, 8, '日用品采购', '["家居日用","日用"]', '李女士')
+    seedTransactions.run(46, '2026-03-18', 'expense', '2000.00', 2, null, 5, '孩子兴趣班续费', '["教育","兴趣班"]', '张小明')
+    seedTransactions.run(47, '2026-03-20', 'transfer', '4800.00', 2, 11, null, '还信用卡', '["转账","还款"]', '')
+    seedTransactions.run(48, '2026-03-20', 'transfer', '2200.00', 2, 12, null, '还花呗', '["转账","还款"]', '')
+    seedTransactions.run(49, '2026-03-22', 'expense', '500.00', 4, null, 3, '周末外出就餐', '["餐饮","社交"]', '李女士')
+    seedTransactions.run(50, '2026-03-25', 'expense', '300.00', 4, null, 9, '电影票', '["娱乐","休闲"]', '李女士')
+    seedTransactions.run(51, '2026-03-28', 'income', '1800.00', null, 6, 14, '股票分红', '["投资","分红"]', '')
+    seedTransactions.run(52, '2026-03-29', 'income', '500.00', null, 2, 16, '定期存款利息', '["利息","存款"]', '')
+    seedTransactions.run(53, '2026-03-30', 'expense', '400.00', 2, null, 6, '年度体检', '["医疗","体检"]', '张先生')
 
-    // ---- 2026年4月（保留原有数据，更新分类ID）----
-    seedTransactions.run(54, '2026-04-10', 'income', '1250.00', null, 6, 14, '股票分红', '["投资","分红"]')
-    seedTransactions.run(55, '2026-04-15', 'expense', '156.00', 4, null, 1, '超市采购食材', '["餐饮","日常"]')
-    seedTransactions.run(56, '2026-04-20', 'transfer', '3500.00', 2, 11, null, '还信用卡', '["转账","还款"]')
-    seedTransactions.run(57, '2026-04-22', 'expense', '6500.00', 2, null, 4, '房贷月供', '["住房","贷款"]')
-    seedTransactions.run(58, '2026-04-24', 'income', '3500.00', null, 4, 15, '周末培训讲课费', '["兼职","培训"]')
-    seedTransactions.run(59, '2026-04-25', 'expense', '380.00', 2, null, 6, '体检', '["医疗","健康"]')
-    seedTransactions.run(60, '2026-04-26', 'expense', '89.90', 4, null, 5, 'Netflix月费', '["娱乐","订阅"]')
-    seedTransactions.run(61, '2026-04-27', 'expense', '200.00', 2, null, 2, '加油', '["交通","汽车"]')
-    seedTransactions.run(62, '2026-04-28', 'expense', '2500.00', 2, null, 8, '房租+水电', '["住房","固定支出"]')
-    seedTransactions.run(63, '2026-04-28', 'transfer', '5000.00', 3, 4, null, '转入支付宝日常使用', '["转账","内部"]')
-    seedTransactions.run(64, '2026-04-30', 'expense', '150.00', 5, null, 1, '朋友聚餐AA', '["餐饮","社交"]')
+    // ---- 2026年4月 ----
+    seedTransactions.run(54, '2026-04-10', 'income', '1250.00', null, 6, 14, '股票分红', '["投资","分红"]', '')
+    seedTransactions.run(55, '2026-04-15', 'expense', '156.00', 4, null, 3, '超市采购食材', '["餐饮","日常"]', '李女士')
+    seedTransactions.run(56, '2026-04-20', 'transfer', '3500.00', 2, 11, null, '还信用卡', '["转账","还款"]', '')
+    seedTransactions.run(57, '2026-04-22', 'expense', '6500.00', 2, null, 1, '房贷月供', '["居住","房贷"]', '')
+    seedTransactions.run(58, '2026-04-24', 'income', '3500.00', null, 4, 15, '周末培训讲课费', '["兼职","培训"]', '')
+    seedTransactions.run(59, '2026-04-25', 'expense', '380.00', 2, null, 6, '体检', '["医疗","健康"]', '张先生')
+    seedTransactions.run(60, '2026-04-26', 'expense', '89.90', 4, null, 9, 'Netflix月费', '["娱乐","订阅"]', '张先生')
+    seedTransactions.run(61, '2026-04-27', 'expense', '200.00', 2, null, 4, '加油', '["交通","汽车"]', '张先生')
+    seedTransactions.run(62, '2026-04-28', 'expense', '2500.00', 2, null, 1, '房租+水电', '["居住","固定支出"]', '')
+    seedTransactions.run(63, '2026-04-28', 'transfer', '5000.00', 3, 4, null, '转入支付宝日常使用', '["转账","内部"]', '')
+    seedTransactions.run(64, '2026-04-30', 'expense', '150.00', 5, null, 3, '朋友聚餐AA', '["餐饮","社交"]', '张先生')
 
     // ---- 2026年5月 ----
-    seedTransactions.run(65, '2026-05-01', 'income', '28500.00', null, 3, 13, '4月工资', '["工资","固定收入"]')
-    seedTransactions.run(66, '2026-05-01', 'expense', '320.00', 2, null, 3, '优衣库T恤', '["购物","服装"]')
-    seedTransactions.run(67, '2026-05-02', 'expense', '48.50', 4, null, 1, '午餐外卖 - 黄焖鸡米饭', '["餐饮","外卖"]')
+    seedTransactions.run(65, '2026-05-01', 'income', '28500.00', null, 3, 13, '4月工资', '["工资","固定收入"]', '')
+    seedTransactions.run(66, '2026-05-01', 'expense', '320.00', 2, null, 7, '优衣库T恤', '["服饰","服装"]', '张先生')
+    seedTransactions.run(67, '2026-05-02', 'expense', '48.50', 4, null, 3, '午餐外卖 - 黄焖鸡米饭', '["餐饮","外卖"]', '张先生')
 
     // ========== Investment Snapshots ==========
     seedSnapshots.run(1, 6, '2025-11-01', '250000.00', '240000.00', '月初快照')
