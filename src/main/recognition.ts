@@ -3,27 +3,42 @@
  */
 import type { RecognitionConfig, RecognitionResult, RecognizedCategory } from '@shared/types'
 
-const RECOGNITION_PROMPT = `You are a financial data recognition expert. Analyze this image and identify all expense categories with their amounts.
+const RECOGNITION_PROMPT = `你是一个财务数据识别专家。分析这张图片，识别所有支出分类及其金额。
 
-Requirements:
-1. Only identify summary amounts for expense categories, not individual transactions
-2. Return JSON format with categories array
-3. Each category contains name and amount (pure number)
-4. If there is a total expense amount in the image, extract it too
+## 支出分类（必须从以下12个分类中选择）：
+1. 居住与房贷 - 房贷月供、房租、物业管理费、取暖费、房屋维修基金
+2. 水电燃气与通讯 - 水费、电费、燃气费、宽带费、手机话费
+3. 餐饮与食品 - 超市买菜、外卖、下馆子、零食饮料、咖啡奶茶
+4. 交通与车辆养护 - 车贷、汽油/充电费、停车费、过路费、保养维修、打车、地铁公交
+5. 教育与自我提升 - 孩子学费、兴趣班、辅导班、书籍文具、成人培训、考证费
+6. 医疗与健康 - 门诊、买药、体检、配眼镜、保健品、保险费（重疾险/医疗险）、健身卡
+7. 服饰与个人形象 - 衣服、鞋子、包包、配饰、理发、美容护肤、化妆品
+8. 家居日用与耐用品 - 家具、家电、数码产品、厨房耗材、清洁用品、个人洗护
+9. 休闲娱乐与社交 - 电影、演唱会、旅游度假、游戏、爱好装备、请客送礼
+10. 宠物支出 - 猫粮狗粮、宠物医疗、宠物用品
+11. 金融与保险支出 - 贷款利息、银行手续费、投资亏损、财产险
+12. 其他与杂项 - 捐款、罚款、无法归类的小额支出
 
-Return format (JSON only, no other text):
+## 要求：
+1. 只识别支出分类的汇总金额，不识别单笔交易
+2. 返回JSON格式，包含categories数组
+3. 每个分类包含name和amount（纯数字）
+4. 如果图片中有总支出金额，也要提取
+
+## 返回格式（仅JSON，无其他文本）：
 {
   "categories": [
-    {"name": "Food", "amount": 1500.00},
-    {"name": "Electronics", "amount": 3000.00}
+    {"name": "餐饮与食品", "amount": 1500.00},
+    {"name": "交通与车辆养护", "amount": 3000.00}
   ],
   "totalAmount": 4500.00
 }
 
-Note:
-- Amount should be numbers only, no currency symbols
-- Category names should be in Chinese, concise (2-4 characters)
-- If unclear, still try to recognize but you can reduce precision`
+## 注意：
+- 金额只填数字，不要带货币符号
+- 分类名称必须是上述12个分类之一，保持完整名称（如"餐饮与食品"）
+- 如果不确定分类，优先归入"其他与杂项"
+- 如果金额不清晰，可以估算但降低confidence值`
 
 export async function recognizeExpenseImage(
   imageDataUrl: string,
@@ -252,7 +267,7 @@ async function callCustomAPI(imageDataUrl: string, config: RecognitionConfig): P
         ],
       },
     ],
-    max_tokens: 1000,
+    max_tokens: 4096,
     temperature: 0.1,
   }
 
@@ -277,12 +292,9 @@ function parseRecognitionResult(rawResponse: string): RecognitionResult {
     let jsonStr = rawResponse.trim()
 
     // Remove markdown code block wrapper if present
-    // Handle cases like: ```json\n{...}\n``` or ```\n{...}\n```
     if (jsonStr.startsWith('```')) {
-      // Find the first newline after opening ```
       const firstNewline = jsonStr.indexOf('\n', 3)
       if (firstNewline !== -1) {
-        // Find the closing ```
         const closingIndex = jsonStr.lastIndexOf('```')
         if (closingIndex > firstNewline) {
           jsonStr = jsonStr.substring(firstNewline + 1, closingIndex).trim()
@@ -293,11 +305,18 @@ function parseRecognitionResult(rawResponse: string): RecognitionResult {
     // Find JSON object boundaries
     const startIndex = jsonStr.indexOf('{')
     const endIndex = jsonStr.lastIndexOf('}')
-    if (startIndex !== -1 && endIndex !== -1) {
+    if (startIndex !== -1 && endIndex !== -1 && endIndex > startIndex) {
       jsonStr = jsonStr.substring(startIndex, endIndex + 1)
     }
 
-    const parsed: any = JSON.parse(jsonStr)
+    // Try to parse JSON, fix truncation if needed
+    let parsed: any
+    try {
+      parsed = JSON.parse(jsonStr)
+    } catch {
+      jsonStr = tryFixTruncatedJSON(jsonStr)
+      parsed = JSON.parse(jsonStr)
+    }
 
     const categories: RecognizedCategory[] = (parsed.categories || []).map((cat: any) => ({
       name: String(cat.name || '').trim(),
@@ -319,4 +338,30 @@ function parseRecognitionResult(rawResponse: string): RecognitionResult {
     console.error('Parse error:', error)
     throw new Error('Parse error: ' + (error as Error).message)
   }
+}
+
+function tryFixTruncatedJSON(jsonStr: string): string {
+  let fixed = jsonStr.trim()
+  let openBraces = 0, closeBraces = 0
+  let openBrackets = 0, closeBrackets = 0
+  let inString = false
+  let prev = ''
+
+  for (const ch of fixed) {
+    if (ch === '"' && prev !== '\\') { inString = !inString }
+    if (!inString) {
+      if (ch === '{') openBraces++
+      if (ch === '}') closeBraces++
+      if (ch === '[') openBrackets++
+      if (ch === ']') closeBrackets++
+    }
+    prev = ch
+  }
+
+  if (inString) { fixed += '"' }
+  fixed = fixed.replace(/,\s*$/, '')
+  while (closeBrackets < openBrackets) { fixed += ']'; closeBrackets++ }
+  while (closeBraces < openBraces) { fixed += '}'; closeBraces++ }
+
+  return fixed
 }
