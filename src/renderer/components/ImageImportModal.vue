@@ -11,8 +11,8 @@
           @click="triggerFileInput">
           <input ref="fileInput" type="file" accept="image/*" style="display: none;" @change="handleFileSelect">
           <div class="upload-icon">📸</div>
-          <div class="upload-text">Click or drag image here</div>
-          <div class="upload-hint">PNG, JPG, WebP, max 10MB</div>
+          <div class="upload-text">点击或拖拽图片到此处</div>
+          <div class="upload-hint">支持 PNG、JPG、WebP，最大 10MB</div>
         </div>
       </div>
 
@@ -23,7 +23,7 @@
         </div>
         <div class="recognizing-status">
           <n-spin size="large" />
-          <div class="status-text">Recognizing...</div>
+          <div class="status-text">正在识别...</div>
         </div>
       </div>
 
@@ -38,62 +38,62 @@
           <!-- Right: Results with Tabs -->
           <div class="result-container">
             <n-tabs v-model:value="activeTab" type="segment" size="small">
-              <n-tab-pane name="result" tab="Result">
+              <n-tab-pane name="result" tab="识别结果">
                 <div class="result-header">
-                  <h3>Recognized Categories</h3>
-                  <n-button size="small" @click="resetToUpload">Re-recognize</n-button>
+                  <h3>识别的分类</h3>
+                  <n-button size="small" @click="resetToUpload">重新识别</n-button>
                 </div>
 
                 <div class="category-list">
                   <div v-for="(item, index) in recognizedCategories" :key="index" class="category-item">
                     <div class="category-info">
-                      <n-input v-model:value="item.name" size="small" style="width: 110px;" placeholder="Category" />
+                      <n-input v-model:value="item.name" size="small" style="width: 110px;" placeholder="分类名称" />
                       <n-input-number v-model:value="item.amount" size="small" style="width: 130px;"
-                        :precision="2" :min="0" placeholder="Amount" />
+                        :precision="2" :min="0" placeholder="金额" />
                     </div>
                     <div class="category-match">
                       <span class="match-label">&rarr;</span>
                       <n-select v-model:value="item.matchedCategoryId" size="small" style="width: 140px;"
-                        :options="categoryOptions" placeholder="Select" />
+                        :options="categoryOptions" placeholder="选择分类" />
                     </div>
-                    <n-button size="small" type="error" @click="removeCategory(index)">Del</n-button>
+                    <n-button size="small" type="error" @click="removeCategory(index)">删除</n-button>
                   </div>
                 </div>
 
-                <n-button size="small" @click="addCategory" style="margin-top: 8px;">+ Add</n-button>
+                <n-button size="small" @click="addCategory" style="margin-top: 8px;">+ 添加</n-button>
 
                 <div class="total-amount">
-                  <span>Total:</span>
-                  <span class="amount">${{ totalAmount.toLocaleString() }}</span>
+                  <span>合计：</span>
+                  <span class="amount">¥{{ totalAmount.toLocaleString() }}</span>
                 </div>
 
                 <div class="import-settings">
                   <div class="setting-item">
-                    <span class="setting-label">Account:</span>
+                    <span class="setting-label">账户：</span>
                     <n-select v-model:value="selectedAccountId" size="small" style="width: 180px;"
-                      :options="accountOptions" placeholder="Select account" />
+                      :options="accountOptions" placeholder="选择账户" />
                   </div>
                   <div class="setting-item">
-                    <span class="setting-label">Date:</span>
+                    <span class="setting-label">日期：</span>
                     <n-date-picker v-model:value="selectedDate" size="small" type="date"
                       style="width: 180px;" />
                   </div>
                   <div class="setting-item">
-                    <span class="setting-label">Member:</span>
+                    <span class="setting-label">成员：</span>
                     <n-select v-model:value="selectedMember" size="small" style="width: 180px;"
-                      :options="memberOpts" placeholder="Select member" clearable />
+                      :options="memberOpts" placeholder="选择成员" clearable />
                   </div>
                 </div>
 
                 <div class="action-buttons">
-                  <n-button @click="resetToUpload">Cancel</n-button>
+                  <n-button @click="resetToUpload">取消</n-button>
                   <n-button type="primary" :disabled="!canImport" :loading="importing" @click="handleImport">
-                    Import
+                    导入
                   </n-button>
                 </div>
               </n-tab-pane>
 
-              <n-tab-pane name="raw" tab="Raw Data">
+              <n-tab-pane name="raw" tab="原始数据">
                 <div class="raw-data-container">
                   <n-input
                     type="textarea"
@@ -111,11 +111,11 @@
 
       <!-- Step 4: Done -->
       <div v-else-if="step === 'done'" class="done-section">
-        <div class="done-icon">Done!</div>
-        <div class="done-text">Import successful</div>
-        <div class="done-detail">{{ importedCount }} records imported</div>
-        <n-button type="primary" @click="resetToUpload" style="margin-top: 16px;">Continue</n-button>
-        <n-button @click="$emit('update:show', false)" style="margin-top: 8px;">Close</n-button>
+        <div class="done-icon">完成！</div>
+        <div class="done-text">导入成功</div>
+        <div class="done-detail">已导入 {{ importedCount }} 条记录</div>
+        <n-button type="primary" @click="resetToUpload" style="margin-top: 16px;">继续导入</n-button>
+        <n-button @click="$emit('update:show', false)" style="margin-top: 8px;">关闭</n-button>
       </div>
     </div>
   </n-modal>
@@ -168,7 +168,7 @@ const categoryOptions = computed(() =>
 
 const accountOptions = computed(() =>
   (assetAccounts.value || []).map(a => ({
-    label: a.name + ' (' + (a.sub_type === 'cash' ? 'Cash' : a.sub_type === 'bank' ? 'Bank' : a.sub_type) + ')',
+    label: a.name + ' (' + (a.sub_type === 'cash' ? '现金' : a.sub_type === 'bank' ? '银行' : a.sub_type) + ')',
     value: a.id,
   }))
 )
@@ -213,13 +213,13 @@ function handleDrop(event: DragEvent) {
   if (file && file.type.startsWith('image/')) {
     processFile(file)
   } else {
-    message.error('Please upload an image file')
+    message.error('请上传图片文件')
   }
 }
 
 async function processFile(file: File) {
   if (file.size > 10 * 1024 * 1024) {
-    message.error('Image size must not exceed 10MB')
+    message.error('图片大小不能超过 10MB')
     return
   }
   imagePreviewUrl.value = URL.createObjectURL(file)
@@ -241,18 +241,18 @@ async function recognizeImage(base64: string) {
   try {
     const configStr = localStorage.getItem('recognition_config')
     if (!configStr) {
-      message.error('Please configure AI recognition in Settings first')
+      message.error('请先在设置中配置 AI 识别')
       step.value = 'upload'
       return
     }
     const config: RecognitionConfig = JSON.parse(configStr)
     if (!config.apiKey) {
-      message.error('Please configure API key in Settings')
+      message.error('请在设置中配置 API 密钥')
       step.value = 'upload'
       return
     }
     if ((config.provider === 'custom' || config.provider === 'ollama') && !config.baseUrl) {
-      message.error('Please configure API endpoint in Settings')
+      message.error('请在设置中配置 API 端点')
       step.value = 'upload'
       return
     }
@@ -272,17 +272,17 @@ async function recognizeImage(base64: string) {
     console.error('Recognition failed:', error)
     const errorMsg = (error as Error).message
     if (errorMsg.includes('401') || errorMsg.includes('Invalid API Key')) {
-      message.error('Invalid API key, please check Settings')
+      message.error('API 密钥无效，请检查设置')
     } else if (errorMsg.includes('403')) {
-      message.error('API access denied, check API key permissions')
+      message.error('API 访问被拒绝，请检查 API 密钥权限')
     } else if (errorMsg.includes('429')) {
-      message.error('API rate limit exceeded, please try later')
+      message.error('API 请求频率超限，请稍后再试')
     } else if (errorMsg.includes('500') || errorMsg.includes('502') || errorMsg.includes('503')) {
-      message.error('API service temporarily unavailable')
+      message.error('API 服务暂时不可用')
     } else if (errorMsg.includes('Failed to fetch') || errorMsg.includes('NetworkError')) {
-      message.error('Network error, please check connection')
+      message.error('网络错误，请检查网络连接')
     } else {
-      message.error('Recognition failed: ' + errorMsg)
+      message.error('识别失败：' + errorMsg)
     }
     step.value = 'upload'
   }
@@ -352,7 +352,7 @@ async function handleImport() {
         .map(item => ({
           category_id: item.matchedCategoryId!,
           amount: item.amount.toFixed(2),
-          description: 'Screenshot import - ' + item.name,
+          description: '截图导入 - ' + item.name,
           member_name: selectedMember.value || '',
         })),
       date: new Date(selectedDate.value).toISOString().split('T')[0],
@@ -362,10 +362,10 @@ async function handleImport() {
     importedCount.value = params.items.length
     step.value = 'done'
     emit('imported')
-    message.success('Successfully imported ' + params.items.length + ' records')
+    message.success('成功导入 ' + params.items.length + ' 条记录')
   } catch (error) {
     console.error('Import failed:', error)
-    message.error('Import failed: ' + (error as Error).message)
+    message.error('导入失败：' + (error as Error).message)
   } finally {
     importing.value = false
   }

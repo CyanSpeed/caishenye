@@ -3,7 +3,7 @@
  */
 import type { RecognitionConfig, RecognitionResult, RecognizedCategory } from '@shared/types'
 
-const RECOGNITION_PROMPT = `你是一个财务数据识别专家。分析这张图片，识别所有支出分类及其金额。
+const RECOGNITION_PROMPT = `你是一个财务数据识别专家API。分析这张图片，识别所有支出分类及其金额。
 
 ## 支出分类（必须从以下12个分类中选择）：
 1. 居住与房贷 - 房贷月供、房租、物业管理费、取暖费、房屋维修基金
@@ -20,12 +20,12 @@ const RECOGNITION_PROMPT = `你是一个财务数据识别专家。分析这张�
 12. 其他与杂项 - 捐款、罚款、无法归类的小额支出
 
 ## 要求：
-1. 只识别支出分类的汇总金额，不识别单笔交易
+1. 只识别支出分类的汇总金额
 2. 返回JSON格式，包含categories数组
 3. 每个分类包含name和amount（纯数字）
 4. 如果图片中有总支出金额，也要提取
 
-## 返回格式（仅JSON，无其他文本）：
+## 返回格式（纯JSON，无任何其他文本）：
 {
   "categories": [
     {"name": "餐饮与食品", "amount": 1500.00},
@@ -38,7 +38,7 @@ const RECOGNITION_PROMPT = `你是一个财务数据识别专家。分析这张�
 - 金额只填数字，不要带货币符号
 - 分类名称必须是上述12个分类之一，保持完整名称（如"餐饮与食品"）
 - 如果不确定分类，优先归入"其他与杂项"
-- 如果金额不清晰，可以估算但降低confidence值`
+- 如果金额不清晰，就留空返回0`
 
 export async function recognizeExpenseImage(
   imageDataUrl: string,

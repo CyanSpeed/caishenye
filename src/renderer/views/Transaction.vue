@@ -21,7 +21,7 @@
                 :class="{ active: form.type === opt.value }"
                 @click="form.type = opt.value"
               >
-                <img :src="opt.icon" width="16" height="16" />
+                <img :src="opt.icon" width="28" height="28" />
                 {{ opt.label }}
               </button>
             </div>
@@ -70,7 +70,7 @@
             <n-input v-model:value="form.description" placeholder="添加备注..." maxlength="100" show-count />
           </n-form-item>
 
-          <n-form-item label="家庭成员" path="member_name" v-if="form.type === 'expense'">
+          <n-form-item label="家庭成员" path="member_name" v-if="form.type !== 'transfer'">
             <n-select
               v-model:value="form.member_name"
               :options="memberOptions"
@@ -211,7 +211,7 @@
               :class="{ active: editForm.type === opt.value }"
               @click="editForm.type = opt.value"
             >
-              <component :is="opt.icon" :size="16" />
+              <img :src="opt.icon" width="28" height="28" />
               {{ opt.label }}
             </button>
           </div>
@@ -260,7 +260,7 @@
           <n-input v-model:value="editForm.description" placeholder="添加备注..." maxlength="100" show-count />
         </n-form-item>
 
-        <n-form-item label="家庭成员" path="member_name" v-if="editForm.type === 'expense'">
+        <n-form-item label="家庭成员" path="member_name" v-if="editForm.type !== 'transfer'">
           <n-select
             v-model:value="editForm.member_name"
             :options="memberOptions"
@@ -415,7 +415,7 @@ const columns: DataTableColumn[] = [
     render: (row: any) => {
       const icon = row.type === 'income' ? IncomeSvg : row.type === 'expense' ? OutcomeSvg : TransferSvg
       const cls = row.type === 'transfer' ? '' : amountClass(row.type === 'expense')
-      return h('span', { class: cls }, h('img', { src: icon, width: '14', height: '14' }))
+      return h('span', { class: cls }, h('img', { src: icon, width: '24', height: '24' }))
     },
   },
   {
@@ -570,7 +570,7 @@ async function handleEditSubmit() {
         to_account_id: editForm.value.to_account_id,
         category_id: editForm.value.type === 'transfer' ? null : editForm.value.category_id,
         description: editForm.value.description,
-        member_name: editForm.value.type === 'expense' ? editForm.value.member_name : '',
+        member_name: editForm.value.type !== 'transfer' ? editForm.value.member_name : '',
       })
       message.success('修改成功')
       showEditModal.value = false
@@ -597,7 +597,7 @@ async function handleSubmit() {
         category_id: form.value.type === 'transfer' ? null : form.value.category_id,
         description: form.value.description,
         tags: '[]',
-        member_name: form.value.type === 'expense' ? form.value.member_name : '',
+        member_name: form.value.type !== 'transfer' ? form.value.member_name : '',
       })
       message.success('记账成功')
       form.value.amount = null
