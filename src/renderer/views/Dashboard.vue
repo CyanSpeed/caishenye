@@ -32,6 +32,13 @@
     <div class="charts-row">
       <div class="glass-card chart-card">
         <div class="card-title">资产概览</div>
+        <div class="composition-summary">
+          <div class="comp-block comp-block--physical">
+            <span class="comp-dot"></span>
+            <span class="comp-label">实物资产</span>
+            <span class="comp-value">{{ currencyPlain(physicalAssetsTotal) }}</span>
+          </div>
+        </div>
         <div ref="compositionChartRef" class="chart-box"></div>
       </div>
       <div class="glass-card chart-card">
@@ -98,7 +105,7 @@ import { ArrowUpOutlined, ArrowDownOutlined, SwapOutlined } from '@vicons/antd'
 
 const {
   netWorth, monthlyIncome, monthlyExpense,
-  totalAssets, totalLiabilities,
+  totalAssets, totalLiabilities, physicalAssetsTotal,
   liabilityOverview,
   recentTransactions,
   netWorthTrend, assetComposition, cashFlowData,
@@ -826,6 +833,43 @@ onUnmounted(() => {
   background: var(--bg-card);
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
 }
+/* Asset Composition Summary Blocks */
+.composition-summary {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.comp-block {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  border-radius: 10px;
+  background: var(--bg-hover, rgba(0,0,0,0.03));
+  border: 1px solid var(--border-subtle, rgba(0,0,0,0.06));
+}
+.comp-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.comp-block--physical .comp-dot {
+  background: #FBBF24;
+  box-shadow: 0 0 6px rgba(251, 191, 36, 0.5);
+}
+.comp-label {
+  font-size: 13px;
+  color: var(--text-secondary, #656D76);
+  font-weight: 500;
+}
+.comp-value {
+  font-size: 15px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-primary, #1F2937);
+}
+
 .chart-box { width: 100%; height: clamp(280px, 24vh, 440px); min-height: 200px; }
 .chart-box--tall { height: clamp(320px, 28vh, 500px); min-height: 260px; }
 

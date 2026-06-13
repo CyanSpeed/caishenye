@@ -58,8 +58,19 @@ export function useFinance() {
   const investmentAccounts = computed(() => state.accounts.filter(a => a.sub_type === 'investment' && a.is_active))
 
   // ---- Net Worth ----
-  const totalAssets = computed(() =>
+  // 账户资产总和（仅金融账户，不含实物资产）
+  const accountAssetsTotal = computed(() =>
     assetAccounts.value.reduce((sum, a) => sum.plus(new Decimal(a.balance)), new Decimal(0))
+  )
+  // 实物资产总价值（仅使用中的物品）
+  const physicalAssetsTotal = computed(() =>
+    state.physicalAssets
+      .filter(a => a.status === '使用中')
+      .reduce((sum, a) => sum.plus(new Decimal(a.current_value)), new Decimal(0))
+  )
+  // 总资产 = 账户资产 + 实物资产
+  const totalAssets = computed(() =>
+    accountAssetsTotal.value.plus(physicalAssetsTotal.value)
   )
   const totalLiabilities = computed(() =>
     liabilityAccounts.value.reduce((sum, a) => sum.plus(new Decimal(a.balance)), new Decimal(0))
@@ -250,23 +261,16 @@ export function useFinance() {
       .filter(a => a.sub_type === 'investment')
       .forEach(a => { investment = investment.plus(new Decimal(a.balance)) })
 
-    // 固定资产：汽车类实物
-    let fixed = new Decimal(0)
+    // 实物资产：所有使用中的实物资产当前估值
+    let physical = new Decimal(0)
     state.physicalAssets
-      .filter(a => a.status === '使用中' && a.category === '汽车')
-      .forEach(a => { fixed = fixed.plus(new Decimal(a.current_value)) })
-
-    // 消费性资产：家电 + 数码 + 奢侈品
-    let consumer = new Decimal(0)
-    state.physicalAssets
-      .filter(a => a.status === '使用中' && a.category !== '汽车')
-      .forEach(a => { consumer = consumer.plus(new Decimal(a.current_value)) })
+      .filter(a => a.status === '使用中')
+      .forEach(a => { physical = physical.plus(new Decimal(a.current_value)) })
 
     return [
       { name: '流动性资产', value: liquidity.toNumber(), category: 'liquidity' },
       { name: '投资性资产', value: investment.toNumber(), category: 'investment' },
-      { name: '固定资产', value: fixed.toNumber(), category: 'fixed' },
-      { name: '消费性资产', value: consumer.toNumber(), category: 'consumer' },
+      { name: '实物资产', value: physical.toNumber(), category: 'physical' },
     ].filter(g => g.value > 0)
   })
 
@@ -564,6 +568,8 @@ export function useFinance() {
     assetAccounts,
     liabilityAccounts,
     investmentAccounts,
+    accountAssetsTotal,
+    physicalAssetsTotal,
     totalAssets,
     totalLiabilities,
     netWorth,

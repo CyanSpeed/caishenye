@@ -16,6 +16,14 @@
             <span class="pill-label">净资产</span>
             <span class="pill-value">{{ currencyPlain(netWorth) }}</span>
           </div>
+          <div class="pill pill--account">
+            <span class="pill-label">账户资产</span>
+            <span class="pill-value">{{ currencyPlain(accountAssetsTotal) }}</span>
+          </div>
+          <div class="pill pill--physical">
+            <span class="pill-label">实物资产</span>
+            <span class="pill-value">{{ currencyPlain(physicalAssetsTotal) }}</span>
+          </div>
         </div>
         <n-button type="primary" @click="openAdd">
           <template #icon><PlusOutlined /></template>
@@ -244,7 +252,9 @@ import type { Account } from '@shared/types'
 import Decimal from 'decimal.js'
 
 const {
-  assetAccounts, liabilityAccounts, totalAssets, totalLiabilities,
+  assetAccounts, liabilityAccounts,
+  accountAssetsTotal, physicalAssetsTotal,
+  totalAssets, totalLiabilities,
   netWorth, investmentPerformance, addAccount, updateAccount, deleteAccount, syncBalance,
 } = useFinance()
 const { currencyPlain } = useFormatter()
@@ -477,6 +487,8 @@ async function handleSync() {
 }
 .pill--asset { border-left: 3px solid var(--color-profit); }
 .pill--liability { border-left: 3px solid var(--color-loss); }
+.pill--account { border-left: 3px solid #4C9AFF; }
+.pill--physical { border-left: 3px solid #FBBF24; }
 .pill-label { font-size: 12px; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.5px; }
 .pill-value { font-size: 20px; font-weight: 700; font-variant-numeric: tabular-nums; margin-top: 2px; color: var(--text-primary); }
 
@@ -707,6 +719,6 @@ async function handleSync() {
 
 @media (max-width: 768px) {
   .summary-pills { flex-wrap: wrap; }
-  .pill { min-width: 120px; }
+  .pill { min-width: 100px; padding: 8px 12px; }
 }
 </style>
