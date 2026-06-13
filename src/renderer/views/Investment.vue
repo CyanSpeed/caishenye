@@ -97,8 +97,8 @@ function chartTT() {
 function axisStyle() {
   return {
     labelColor: isDarkMode() ? '#8B949E' : '#656D76',
-    lineColor: isDarkMode() ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)',
-    splitColor: isDarkMode() ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.04)',
+    lineColor: isDarkMode() ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)',
+    splitColor: isDarkMode() ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)',
   }
 }
 

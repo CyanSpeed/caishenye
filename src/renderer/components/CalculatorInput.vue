@@ -1,9 +1,10 @@
 <template>
   <n-popover
-    trigger="focus"
+    trigger="manual"
     placement="bottom"
     :show="showPopover"
     :style="{ padding: 0 }"
+    :to="false"
     raw
     @update:show="onPopoverUpdate"
   >
@@ -26,9 +27,16 @@
     </template>
 
     <div class="calc-panel" @mousedown.prevent>
-      <!-- 表达式显示 -->
+      <!-- 可编辑的表达式输入框 -->
       <div class="calc-display">
-        <div class="calc-expr">{{ displayExpr || '0' }}</div>
+        <input
+          ref="calcInputRef"
+          class="calc-expr-input"
+          v-model="expr"
+          @keydown="onCalcKeydown"
+          placeholder="0"
+          autocomplete="off"
+        />
         <div class="calc-result" v-if="previewResult !== null">
           = {{ previewResult }}
         </div>
@@ -65,7 +73,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, nextTick, watch } from 'vue'
 import { NPopover, NInputNumber } from 'naive-ui'
 import { Parser } from 'expr-eval'
 
@@ -91,12 +99,15 @@ const emit = defineEmits<{
 const showPopover = ref(false)
 const expr = ref('')
 const justCalculated = ref(false)
+const calcInputRef = ref<HTMLInputElement | null>(null)
+const loadedFromValue = ref(false)
 
-// 表达式展示（将符号转为显示用）
-const displayExpr = computed(() => {
-  return expr.value
-    .replace(/\*/g, '×')
-    .replace(/\//g, '÷')
+// 监听外部 value 变化：当弹窗打开期间外部值变了，同步到表达式
+watch(() => props.value, (newVal) => {
+  if (showPopover.value && !loadedFromValue.value && newVal !== null) {
+    expr.value = String(newVal)
+    loadedFromValue.value = true
+  }
 })
 
 // 实时预览计算结果
@@ -105,11 +116,11 @@ const previewResult = computed(() => {
   try {
     const val = evaluate(expr.value)
     if (val === null || !isFinite(val)) return null
-    // 如果表达式末尾是运算符，显示预览
+    if (val === 0 && expr.value !== '0' && !expr.value.startsWith('0')) return null
     if (/[+\-*/%]$/.test(expr.value)) {
       return formatNum(val)
     }
-    return null
+    return formatNum(val)
   } catch {
     return null
   }
@@ -118,10 +129,8 @@ const previewResult = computed(() => {
 function evaluate(expression: string): number | null {
   if (!expression) return null
   try {
-    // 移除末尾的运算符
     let clean = expression.replace(/[+\-*/%]+$/, '')
     if (!clean) return null
-    // 处理百分号
     clean = clean.replace(/(\d+\.?\d*)%/g, '($1/100)')
     const parser = new Parser()
     const result = parser.evaluate(clean)
@@ -132,8 +141,8 @@ function evaluate(expression: string): number | null {
 }
 
 function formatNum(n: number): string {
+  if (!isFinite(n)) return 'Error'
   if (Number.isInteger(n)) return n.toString()
-  // 最多保留8位小数，去除尾部零
   return parseFloat(n.toFixed(8)).toString()
 }
 
@@ -142,66 +151,99 @@ function onInputUpdate(val: number | null) {
 }
 
 function onFocus() {
-  showPopover.value = true
-  // 如果有当前值，加载到表达式中
-  if (props.value !== null && !expr.value) {
-    expr.value = String(props.value)
+  if (!showPopover.value) {
+    openCalculator()
   }
+}
+
+function openCalculator() {
+  showPopover.value = true
+  // 每次打开时用主输入框的当前值初始化表达式，方便用户直接修改
+  // null 时留空（placeholder 显示 0 引导输入）
+  if (props.value !== null && props.value !== undefined) {
+    expr.value = String(props.value)
+    loadedFromValue.value = true
+  } else {
+    expr.value = ''
+    loadedFromValue.value = false
+  }
+  // 等 popover 内容渲染完成后自动聚焦
+  nextTick(() => {
+    requestAnimationFrame(() => {
+      calcInputRef.value?.focus()
+    })
+  })
 }
 
 function onPopoverUpdate(show: boolean) {
-  showPopover.value = show
   if (!show) {
-    // 关闭时，如果有未确认的表达式，自动计算
-    if (expr.value) {
-      const result = evaluate(expr.value)
-      if (result !== null && isFinite(result)) {
-        emit('update:value', Math.round(result * 100) / 100)
-      }
-    }
-    expr.value = ''
-    justCalculated.value = false
+    // 点击外部关闭时，自动计算并提交表达式
+    commitExpression()
   }
 }
 
+function commitExpression() {
+  if (expr.value) {
+    const result = evaluate(expr.value)
+    if (result !== null && isFinite(result)) {
+      emit('update:value', Math.round(result * 100) / 100)
+    }
+  }
+  closeCalculator()
+}
+
+// ---- 表达式输入框事件 ----
+function onCalcKeydown(e: KeyboardEvent) {
+  if (e.key === 'Enter') {
+    e.preventDefault()
+    calculate()
+  } else if (e.key === 'Escape') {
+    e.preventDefault()
+    closeCalculator()
+  }
+}
+
+// ---- 按钮操作 ----
 function inputNum(n: string) {
   if (justCalculated.value) {
-    // 刚按了等号，输入新数字时清空表达式
     expr.value = n
     justCalculated.value = false
   } else {
     expr.value += n
   }
+  focusCalcInput()
 }
 
 function inputDot() {
   if (justCalculated.value) {
     expr.value = '0.'
     justCalculated.value = false
+    focusCalcInput()
     return
   }
-  // 检查当前数字是否已有小数点
   const parts = expr.value.split(/[+\-*/%]/)
   const lastNum = parts[parts.length - 1]
   if (!lastNum.includes('.')) {
     expr.value += lastNum === '' ? '0.' : '.'
   }
+  focusCalcInput()
 }
 
 function inputOp(op: string) {
   justCalculated.value = false
   const internalOp = op === '×' ? '*' : op === '÷' ? '/' : op
-  // 替换末尾的运算符
   if (/[+\-*/%]$/.test(expr.value)) {
     expr.value = expr.value.slice(0, -1) + internalOp
   } else if (expr.value) {
     expr.value += internalOp
   }
+  focusCalcInput()
 }
 
 function clear() {
   expr.value = ''
   justCalculated.value = false
+  focusCalcInput()
 }
 
 function backspace() {
@@ -210,6 +252,7 @@ function backspace() {
     return
   }
   expr.value = expr.value.slice(0, -1)
+  focusCalcInput()
 }
 
 function calculate() {
@@ -218,46 +261,72 @@ function calculate() {
   if (result !== null && isFinite(result)) {
     const rounded = Math.round(result * 100) / 100
     emit('update:value', rounded)
-    expr.value = String(rounded)
-    justCalculated.value = true
+    closeCalculator()
   }
+}
+
+function closeCalculator() {
+  showPopover.value = false
+  expr.value = ''
+  justCalculated.value = false
+  loadedFromValue.value = false
+}
+
+function focusCalcInput() {
+  nextTick(() => {
+    calcInputRef.value?.focus()
+  })
 }
 </script>
 
 <style scoped>
 .calc-panel {
-  width: 260px;
-  padding: 10px;
+  width: 280px;
+  padding: 12px;
   background: var(--bg-card, #fff);
-  border-radius: 12px;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
+  border-radius: 14px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.18);
 }
 
 .calc-display {
-  padding: 8px 12px;
-  margin-bottom: 8px;
+  margin-bottom: 10px;
+  padding: 10px 14px;
   background: var(--border-subtle, rgba(0,0,0,0.04));
-  border-radius: 8px;
-  min-height: 48px;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  align-items: flex-end;
+  border-radius: 10px;
+  border: 1px solid var(--border-card, transparent);
+  transition: border-color 0.2s;
+}
+.calc-display:focus-within {
+  border-color: rgba(96, 165, 250, 0.4);
 }
 
-.calc-expr {
-  font-size: 18px;
+.calc-expr-input {
+  width: 100%;
+  border: none;
+  outline: none;
+  background: transparent;
+  font-size: 22px;
   font-weight: 600;
   color: var(--text-primary, #1F2937);
   font-variant-numeric: tabular-nums;
-  word-break: break-all;
-  line-height: 1.3;
+  font-family: 'Inter', -apple-system, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  text-align: right;
+  caret-color: #60A5FA;
+  padding: 0;
+  line-height: 1.4;
+}
+.calc-expr-input::placeholder {
+  color: var(--text-muted, #9CA3AF);
+  font-weight: 400;
 }
 
 .calc-result {
-  font-size: 13px;
+  font-size: 14px;
   color: var(--text-muted, #9CA3AF);
-  margin-top: 2px;
+  text-align: right;
+  margin-top: 4px;
+  font-variant-numeric: tabular-nums;
+  min-height: 18px;
 }
 
 .calc-grid {
@@ -267,18 +336,20 @@ function calculate() {
 }
 
 .calc-btn {
-  height: 40px;
+  height: 44px;
   border: none;
-  border-radius: 8px;
-  font-size: 16px;
+  border-radius: 10px;
+  font-size: 17px;
   font-weight: 500;
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: all 0.12s ease;
   background: var(--bg-card, #f8f9fa);
   color: var(--text-primary, #1F2937);
   display: flex;
   align-items: center;
   justify-content: center;
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 .calc-btn:hover {
@@ -286,14 +357,15 @@ function calculate() {
 }
 
 .calc-btn:active {
-  transform: scale(0.95);
-  background: rgba(96, 165, 250, 0.2);
+  transform: scale(0.94);
+  background: rgba(96, 165, 250, 0.22);
 }
 
 .calc-btn--fn {
   background: rgba(96, 165, 250, 0.08);
   color: #60A5FA;
   font-weight: 600;
+  font-size: 14px;
 }
 
 .calc-btn--fn:hover {
@@ -301,10 +373,10 @@ function calculate() {
 }
 
 .calc-btn--op {
-  background: rgba(96, 165, 250, 0.12);
+  background: rgba(96, 165, 250, 0.1);
   color: #60A5FA;
   font-weight: 600;
-  font-size: 18px;
+  font-size: 19px;
 }
 
 .calc-btn--op:hover {
@@ -315,7 +387,7 @@ function calculate() {
   background: linear-gradient(135deg, #60A5FA, #3B82F6);
   color: #fff;
   font-weight: 700;
-  font-size: 18px;
+  font-size: 20px;
 }
 
 .calc-btn--eq:hover {
@@ -332,7 +404,7 @@ function calculate() {
 }
 
 :root.theme-dark .calc-btn {
-  background: rgba(255,255,255,0.06);
+  background: rgba(255,255,255,0.1);
   color: #E6EDF3;
 }
 

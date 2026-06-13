@@ -516,7 +516,7 @@ async function handleSync() {
   width: 140px; height: 140px;
   border-radius: 50%;
   transform: translate(40px, -40px);
-  opacity: 0.06;
+  opacity: 0.1;
   pointer-events: none;
   transition: opacity 0.3s ease;
 }

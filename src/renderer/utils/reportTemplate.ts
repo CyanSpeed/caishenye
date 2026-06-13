@@ -145,7 +145,7 @@ export function renderReportHTML(data: QuarterlyReportData, colorMode: 'cn' | 'w
             --text: #2d3748;
             --text-light: #718096;
             --border: #e2e8f0;
-            --shadow: 0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -1px rgba(0,0,0,0.06);
+            --shadow: 0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -1px rgba(0,0,0,0.1);
         }
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {

@@ -213,8 +213,8 @@ html {
   --text-primary: #1F2937;
   --text-secondary: #6B7280;
   --text-muted: #9CA3AF;
-  --shadow-card: 0 4px 20px rgba(0, 0, 0, 0.03);
-  --shadow-card-hover: 0 8px 30px rgba(0, 0, 0, 0.06);
+  --shadow-card: 0 4px 20px rgba(0, 0, 0, 0.1);
+  --shadow-card-hover: 0 8px 30px rgba(0, 0, 0, 0.2);
   --scrollbar-thumb: rgba(0,0,0,0.12);
   --scrollbar-thumb-hover: rgba(0,0,0,0.20);
   --footer-text: #6B7280;
@@ -263,10 +263,10 @@ html[data-color-mode="west"] {
 html.theme-dark {
   --bg-body: #0D1117;
   --bg-card: rgba(255, 255, 255, 0.05);
-  --bg-card-hover: rgba(255, 255, 255, 0.08);
+  --bg-card-hover: rgba(255, 255, 255, 0.2);
   --border-card: transparent;
   --border-card-hover: transparent;
-  --border-subtle: rgba(255, 255, 255, 0.06);
+  --border-subtle: rgba(255, 255, 255, 0.1);
   --text-primary: #E6EDF3;
   --text-secondary: #8B949E;
   --text-muted: #6E7681;

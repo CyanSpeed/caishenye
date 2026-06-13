@@ -241,8 +241,8 @@ function chartTooltipStyle() {
 }
 
 function chartTextColor() { return isDarkMode() ? '#8B949E' : '#656D76' }
-function chartLineColor() { return isDarkMode() ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)' }
-function chartSplitColor() { return isDarkMode() ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.04)' }
+function chartLineColor() { return isDarkMode() ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)' }
+function chartSplitColor() { return isDarkMode() ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)' }
 
 function initChart(
   refEl: HTMLElement | null,
@@ -486,7 +486,7 @@ function initComparisonChart() {
     chart.setOption({
       tooltip: { trigger: 'axis', ...tt },
       legend: { data: ['收入', '支出'], textStyle: { color: textColor }, bottom: 0 },
-      grid: { left: 60, right: 24, top: 20, bottom: 40 },
+      grid: { left: 60, right: 24, top: 20, bottom: 60 },
       xAxis: {
         type: 'category',
         data: data.map(d => d.month + '月'),
@@ -752,7 +752,7 @@ onUnmounted(() => {
   width: 100px;
   height: 100px;
   border-radius: 50%;
-  opacity: 0.1;
+  opacity: 0.2;
   pointer-events: none;
 }
 .stat-card:nth-child(1)::before { background: linear-gradient(135deg, #60A5FA, #A78BFA); }

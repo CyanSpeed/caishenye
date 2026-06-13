@@ -187,6 +187,12 @@
       </div>
     </div>
 
+    <!-- 月度收支对比 -->
+    <div class="glass-card chart-card" style="margin-top: clamp(16px, 1.5vw, 24px);">
+      <div class="card-title">月度收支对比</div>
+      <div ref="comparisonChartRef" class="chart-box"></div>
+    </div>
+
     <!-- 图像导入模态框 -->
     <ImageImportModal
       v-model:show="showImageImport"
@@ -280,7 +286,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, h } from 'vue'
+import { ref, computed, h, onMounted, onUnmounted } from 'vue'
+import * as echarts from 'echarts'
 import {
   NForm, NFormItem, NSelect, NDatePicker, NInput, NInputNumber,
   NButton, NDataTable, NPopconfirm, NModal, useMessage,
@@ -302,7 +309,7 @@ import type { TransactionType, Transaction } from '@shared/types'
 const {
   sortedTransactions, expenseCategories, incomeCategories, assetAccounts,
   getAccountById, getCategoryById, addTransaction, updateTransaction, deleteTransaction,
-  memberOptions, getMemberByName,
+  memberOptions, getMemberByName, monthlyComparison,
 } = useFinance()
 const { currencyPlain, shortDate } = useFormatter()
 const { amountClass } = useColorMode()
@@ -316,6 +323,84 @@ const showFilters = ref(false)
 const showEditModal = ref(false)
 const editingId = ref<number | null>(null)
 const showImageImport = ref(false)
+
+// ===== 月度收支对比图表 =====
+const comparisonChartRef = ref<HTMLElement | null>(null)
+let comparisonChart: echarts.ECharts | null = null
+let chartObserver: ResizeObserver | null = null
+
+function isDarkMode() {
+  return document.documentElement.classList.contains('theme-dark')
+}
+
+function initComparisonChart() {
+  const el = comparisonChartRef.value
+  if (!el || el.clientWidth === 0 || el.clientHeight === 0) return
+
+  const existing = echarts.getInstanceByDom(el)
+  if (existing) existing.dispose()
+
+  const chart = echarts.init(el, isDarkMode() ? 'dark' : undefined)
+  const data = monthlyComparison.value
+  const textColor = isDarkMode() ? '#8B949E' : '#656D76'
+  const lineColor = isDarkMode() ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)'
+  const splitColor = isDarkMode() ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)'
+
+  chart.setOption({
+    tooltip: {
+      trigger: 'axis',
+      backgroundColor: isDarkMode() ? 'rgba(13,17,23,0.95)' : 'rgba(255,255,255,0.95)',
+      borderColor: isDarkMode() ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.08)',
+    },
+    legend: { data: ['收入', '支出'], textStyle: { color: textColor }, bottom: 0 },
+    grid: { left: 60, right: 24, top: 20, bottom: 60 },
+    xAxis: {
+      type: 'category',
+      data: data.map(d => d.month + '月'),
+      axisLabel: { color: textColor, fontSize: 10, rotate: 30 },
+      axisLine: { lineStyle: { color: lineColor } },
+      axisTick: { show: false },
+    },
+    yAxis: {
+      type: 'value',
+      splitLine: { lineStyle: { color: splitColor } },
+      axisLabel: {
+        color: textColor,
+        formatter: (v: number) => v >= 10000 ? (v / 10000).toFixed(0) + '万' : String(v),
+      },
+    },
+    series: [
+      {
+        name: '收入', type: 'bar',
+        data: data.map(d => d.income),
+        itemStyle: { color: '#10B981', borderRadius: [6, 6, 0, 0] },
+        barWidth: '35%',
+        barGap: '20%',
+        label: {
+          show: true, position: 'top', fontSize: 10, color: '#10B981',
+          formatter: (p: any) => p.value >= 10000 ? (p.value / 10000).toFixed(1) + '万' : '',
+        },
+      },
+      {
+        name: '支出', type: 'bar',
+        data: data.map(d => -d.expense),
+        itemStyle: { color: '#F87171', borderRadius: [0, 0, 6, 6] },
+        barWidth: '35%',
+        label: {
+          show: true, position: 'bottom', fontSize: 10, color: '#F87171',
+          formatter: (p: any) => {
+            const v = Math.abs(p.value)
+            return v >= 10000 ? '-' + (v / 10000).toFixed(1) + '万' : ''
+          },
+        },
+      },
+    ],
+  })
+
+  chartObserver = new ResizeObserver(() => chart.resize())
+  chartObserver.observe(el)
+  comparisonChart = chart
+}
 
 // ===== 家庭成员 =====
 // memberOptions and getMemberByName are provided by useFinance()
@@ -617,19 +702,30 @@ function handleImageImported() {
   // 图像导入成功后的回调，可以刷新列表或显示提示
   message.success('截图导入成功，交易记录已更新')
 }
+
+onMounted(() => {
+  requestAnimationFrame(() => {
+    setTimeout(() => initComparisonChart(), 150)
+  })
+})
+
+onUnmounted(() => {
+  chartObserver?.disconnect()
+  comparisonChart?.dispose()
+})
 </script>
 
 <style scoped>
 .tx-page { padding: clamp(16px, 2vw, 32px); width: 100%; box-sizing: border-box; }
 .page-header { margin-bottom: 24px; display: flex; justify-content: space-between; align-items: center; }
 .page-title { margin: 0; font-size: 24px; font-weight: 700; color: var(--text-primary); }
-.tx-layout { display: grid; grid-template-columns: clamp(320px, 22vw, 420px) 1fr; gap: clamp(16px, 1.5vw, 24px); align-items: start; }
+.tx-layout { display: grid; grid-template-columns: clamp(320px, 22vw, 420px) 1fr; gap: clamp(16px, 1.5vw, 24px); align-items: stretch; }
 
 .glass-card { padding: 20px 24px; }
 .form-card { position: sticky; top: 28px; }
 .list-card { display: flex; flex-direction: column; gap: 12px; overflow: hidden; }
 .list-header { display: flex; justify-content: space-between; align-items: center; }
-.card-title { font-size: 15px; font-weight: 600; color: var(--text-primary); }
+.card-title { font-size: 16px; font-weight: 600; color: var(--text-primary); }
 
 .type-toggle { display: flex; gap: 6px; width: 100%; }
 .type-btn {
@@ -670,6 +766,13 @@ function handleImageImported() {
   font-size: 12px;
   color: var(--text-secondary);
 }
+
+.chart-card {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.chart-box { width: 100%; height: clamp(320px, 28vh, 480px); min-height: 260px; }
 
 @media (max-width: 900px) {
   .tx-layout { grid-template-columns: 1fr; }

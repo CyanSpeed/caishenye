@@ -485,8 +485,8 @@ function initOverviewDepreciationChart() {
   overviewChart = echarts.init(overviewChartRef.value, isDark() ? 'dark' : undefined)
   const assets = displayAssets.value
   const textColor = isDark() ? '#8B949E' : '#656D76'
-  const lineColor = isDark() ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)'
-  const splitColor = isDark() ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.04)'
+  const lineColor = isDark() ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.1)'
+  const splitColor = isDark() ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.1)'
   const ttBg = isDark() ? 'rgba(13,17,23,0.95)' : 'rgba(255,255,255,0.95)'
   const ttBorder = isDark() ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.08)'
   const colors = ['#60A5FA', '#A78BFA', '#FBBF24', '#F87171', '#34D399']
@@ -606,8 +606,8 @@ function initDepreciationChart(item: PhysicalAsset) {
   }
 
   const textColor = isDark() ? '#8B949E' : '#656D76'
-  const lineColor = isDark() ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)'
-  const splitColor = isDark() ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.04)'
+  const lineColor = isDark() ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)'
+  const splitColor = isDark() ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)'
 
   chart.setOption({
     tooltip: {
@@ -823,7 +823,7 @@ onUnmounted(() => {
   transition: background 0.15s ease;
 }
 .selector-item:hover { background: var(--border-subtle); }
-.selector-item.selected { background: rgba(76,154,255,0.06); }
+.selector-item.selected { background: rgba(76,154,255,0.1); }
 .selector-item-left { display: flex; align-items: center; gap: 8px; min-width: 0; }
 .selector-emoji { font-size: 18px; flex-shrink: 0; }
 .selector-name { font-size: 13px; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
