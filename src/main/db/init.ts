@@ -32,7 +32,7 @@ function createTables(db: Database.Database) {
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       name TEXT NOT NULL,
       type TEXT NOT NULL CHECK(type IN ('asset', 'liability')),
-      sub_type TEXT NOT NULL CHECK(sub_type IN ('cash', 'bank', 'investment', 'loan', 'credit')),
+      sub_type TEXT NOT NULL CHECK(sub_type IN ('cash', 'bank', 'investment', 'receivable', 'mortgage', 'consumer_loan', 'private_loan')),
       balance TEXT NOT NULL DEFAULT '0.00',
       currency TEXT NOT NULL DEFAULT 'CNY',
       is_active INTEGER NOT NULL DEFAULT 1,
@@ -206,10 +206,12 @@ function seedIfEmpty(db: Database.Database) {
     seedAccounts.run(7, '易方达基金账户', 'asset', 'investment', '120000.00', 'CNY', 1, '定投指数基金', '', 'exact', '2026-06-01')
     seedAccounts.run(8, '建设银行定期存款', 'asset', 'investment', '200000.00', 'CNY', 1, '3年期定期，2027年到期', '', 'exact', '2026-06-01')
     // 负债账户 - 负债都是精确同步
-    seedAccounts.run(9, '房贷账户', 'liability', 'loan', '1200000.00', 'CNY', 1, '2023年购房贷款，30年期，月供6500', '1500000.00', 'exact', '2026-06-01')
-    seedAccounts.run(10, '车贷账户', 'liability', 'loan', '85000.00', 'CNY', 1, '比亚迪汉EV车贷，3年期', '120000.00', 'exact', '2026-06-01')
-    seedAccounts.run(11, '招商银行信用卡', 'liability', 'credit', '12500.00', 'CNY', 1, '每月10日还款，额度5万', '12500.00', 'exact', '2026-06-01')
-    seedAccounts.run(12, '花呗', 'liability', 'credit', '3200.00', 'CNY', 1, '每月20日自动还款', '3200.00', 'exact', '2026-06-01')
+    seedAccounts.run(9, '房贷账户', 'liability', 'mortgage', '1200000.00', 'CNY', 1, '2023年购房贷款，30年期，月供6500', '1500000.00', 'exact', '2026-06-01')
+    seedAccounts.run(10, '车贷账户', 'liability', 'consumer_loan', '85000.00', 'CNY', 1, '比亚迪汉EV车贷，3年期', '120000.00', 'exact', '2026-06-01')
+    seedAccounts.run(11, '招商银行信用卡', 'liability', 'consumer_loan', '12500.00', 'CNY', 1, '每月10日还款，额度5万', '12500.00', 'exact', '2026-06-01')
+    seedAccounts.run(12, '花呗', 'liability', 'consumer_loan', '3200.00', 'CNY', 1, '每月20日自动还款', '3200.00', 'exact', '2026-06-01')
+    // 债权资产
+    seedAccounts.run(13, '朋友借款-张三', 'asset', 'receivable', '5000.00', 'CNY', 1, '2025年借出，预计年底归还', '', 'approximate', null)
 
     // ========== Categories ==========
     // 支出分类（新的12种分类）

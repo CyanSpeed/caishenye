@@ -1,7 +1,7 @@
 // ===== Database Schema Types =====
 
 export type AccountType = 'asset' | 'liability'
-export type AccountSubType = 'cash' | 'bank' | 'investment' | 'loan' | 'credit'
+export type AccountSubType = 'cash' | 'bank' | 'investment' | 'receivable' | 'mortgage' | 'consumer_loan' | 'private_loan'
 
 export type AccountSyncMode = 'exact' | 'approximate' // exact=精确同步, approximate=近似记账
 

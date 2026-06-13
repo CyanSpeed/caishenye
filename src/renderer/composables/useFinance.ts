@@ -82,7 +82,7 @@ export function useFinance() {
 
   // ---- Asset Allocation (for pie chart) ----
   const assetAllocation = computed(() => {
-    const groups: Record<string, Decimal> = { cash: new Decimal(0), bank: new Decimal(0), investment: new Decimal(0) }
+    const groups: Record<string, Decimal> = { cash: new Decimal(0), bank: new Decimal(0), investment: new Decimal(0), receivable: new Decimal(0) }
     assetAccounts.value.forEach(a => {
       if (groups[a.sub_type] !== undefined) {
         groups[a.sub_type] = groups[a.sub_type].plus(new Decimal(a.balance))
@@ -92,20 +92,22 @@ export function useFinance() {
       { name: '现金', value: groups.cash.toNumber(), sub_type: 'cash' as const },
       { name: '银行存款', value: groups.bank.toNumber(), sub_type: 'bank' as const },
       { name: '投资', value: groups.investment.toNumber(), sub_type: 'investment' as const },
+      { name: '债权', value: groups.receivable.toNumber(), sub_type: 'receivable' as const },
     ].filter(g => g.value > 0)
   })
 
   // ---- Liability Overview (for ring chart) ----
   const liabilityOverview = computed(() => {
-    const groups: Record<string, Decimal> = { loan: new Decimal(0), credit: new Decimal(0) }
+    const groups: Record<string, Decimal> = { mortgage: new Decimal(0), consumer_loan: new Decimal(0), private_loan: new Decimal(0) }
     liabilityAccounts.value.forEach(a => {
       if (groups[a.sub_type] !== undefined) {
         groups[a.sub_type] = groups[a.sub_type].plus(new Decimal(a.balance))
       }
     })
     return [
-      { name: '贷款', value: groups.loan.toNumber(), sub_type: 'loan' as const },
-      { name: '信用卡', value: groups.credit.toNumber(), sub_type: 'credit' as const },
+      { name: '房贷', value: groups.mortgage.toNumber(), sub_type: 'mortgage' as const },
+      { name: '消费贷/信用卡', value: groups.consumer_loan.toNumber(), sub_type: 'consumer_loan' as const },
+      { name: '民间借款', value: groups.private_loan.toNumber(), sub_type: 'private_loan' as const },
     ].filter(g => g.value > 0)
   })
 
@@ -236,10 +238,10 @@ export function useFinance() {
 
   // ---- 2. Asset Composition (accounts + physical assets) ----
   const assetComposition = computed(() => {
-    // 流动性：现金 + 银行
+    // 流动性：现金 + 银行 + 债权
     let liquidity = new Decimal(0)
     assetAccounts.value
-      .filter(a => a.sub_type === 'cash' || a.sub_type === 'bank')
+      .filter(a => a.sub_type === 'cash' || a.sub_type === 'bank' || a.sub_type === 'receivable')
       .forEach(a => { liquidity = liquidity.plus(new Decimal(a.balance)) })
 
     // 投资性：投资账户

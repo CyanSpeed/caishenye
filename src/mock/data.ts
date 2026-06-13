@@ -1,18 +1,19 @@
 import type { Account, Transaction, InvestmentSnapshot, Category, PhysicalAsset } from '@shared/types'
 
 export const mockAccounts: Account[] = [
-  { id: 1, name: '现金钱包', type: 'asset', sub_type: 'cash', balance: '5000.00', currency: 'CNY', is_active: true, notes: '日常现金备用', original_amount: '' },
-  { id: 2, name: '招商银行储蓄卡', type: 'asset', sub_type: 'bank', balance: '156800.50', currency: 'CNY', is_active: true, notes: '主工资卡，每月工资入账', original_amount: '' },
-  { id: 3, name: '工商银行工资卡', type: 'asset', sub_type: 'bank', balance: '42300.00', currency: 'CNY', is_active: true, notes: '副卡，理财专用', original_amount: '' },
-  { id: 4, name: '支付宝余额', type: 'asset', sub_type: 'cash', balance: '8520.75', currency: 'CNY', is_active: true, notes: '日常消费主力', original_amount: '' },
-  { id: 5, name: '微信零钱', type: 'asset', sub_type: 'cash', balance: '1230.00', currency: 'CNY', is_active: true, notes: '社交红包和小额支付', original_amount: '' },
-  { id: 6, name: '华泰证券股票账户', type: 'asset', sub_type: 'investment', balance: '285000.00', currency: 'CNY', is_active: true, notes: 'A股投资，长期持有为主', original_amount: '' },
-  { id: 7, name: '易方达基金账户', type: 'asset', sub_type: 'investment', balance: '120000.00', currency: 'CNY', is_active: true, notes: '定投指数基金', original_amount: '' },
-  { id: 8, name: '建设银行定期存款', type: 'asset', sub_type: 'investment', balance: '200000.00', currency: 'CNY', is_active: true, notes: '3年期定期，2027年到期', original_amount: '' },
-  { id: 9, name: '房贷账户', type: 'liability', sub_type: 'loan', balance: '1200000.00', currency: 'CNY', is_active: true, notes: '2023年购房贷款，30年期，月供6500', original_amount: '1500000.00' },
-  { id: 10, name: '车贷账户', type: 'liability', sub_type: 'loan', balance: '85000.00', currency: 'CNY', is_active: true, notes: '比亚迪汉EV车贷，3年期', original_amount: '120000.00' },
-  { id: 11, name: '招商银行信用卡', type: 'liability', sub_type: 'credit', balance: '12500.00', currency: 'CNY', is_active: true, notes: '每月10日还款，额度5万', original_amount: '12500.00' },
-  { id: 12, name: '花呗', type: 'liability', sub_type: 'credit', balance: '3200.00', currency: 'CNY', is_active: true, notes: '每月20日自动还款', original_amount: '3200.00' },
+  { id: 1, name: '现金钱包', type: 'asset', sub_type: 'cash', balance: '5000.00', currency: 'CNY', is_active: true, notes: '日常现金备用', original_amount: '', sync_mode: 'approximate', last_synced_at: null },
+  { id: 2, name: '招商银行储蓄卡', type: 'asset', sub_type: 'bank', balance: '156800.50', currency: 'CNY', is_active: true, notes: '主工资卡，每月工资入账', original_amount: '', sync_mode: 'exact', last_synced_at: '2026-06-01' },
+  { id: 3, name: '工商银行工资卡', type: 'asset', sub_type: 'bank', balance: '42300.00', currency: 'CNY', is_active: true, notes: '副卡，理财专用', original_amount: '', sync_mode: 'exact', last_synced_at: '2026-06-01' },
+  { id: 4, name: '支付宝余额', type: 'asset', sub_type: 'cash', balance: '8520.75', currency: 'CNY', is_active: true, notes: '日常消费主力', original_amount: '', sync_mode: 'approximate', last_synced_at: null },
+  { id: 5, name: '微信零钱', type: 'asset', sub_type: 'cash', balance: '1230.00', currency: 'CNY', is_active: true, notes: '社交红包和小额支付', original_amount: '', sync_mode: 'approximate', last_synced_at: null },
+  { id: 6, name: '华泰证券股票账户', type: 'asset', sub_type: 'investment', balance: '285000.00', currency: 'CNY', is_active: true, notes: 'A股投资，长期持有为主', original_amount: '', sync_mode: 'exact', last_synced_at: '2026-06-01' },
+  { id: 7, name: '易方达基金账户', type: 'asset', sub_type: 'investment', balance: '120000.00', currency: 'CNY', is_active: true, notes: '定投指数基金', original_amount: '', sync_mode: 'exact', last_synced_at: '2026-06-01' },
+  { id: 8, name: '建设银行定期存款', type: 'asset', sub_type: 'investment', balance: '200000.00', currency: 'CNY', is_active: true, notes: '3年期定期，2027年到期', original_amount: '', sync_mode: 'exact', last_synced_at: '2026-06-01' },
+  { id: 9, name: '房贷账户', type: 'liability', sub_type: 'mortgage', balance: '1200000.00', currency: 'CNY', is_active: true, notes: '2023年购房贷款，30年期，月供6500', original_amount: '1500000.00', sync_mode: 'exact', last_synced_at: '2026-06-01' },
+  { id: 10, name: '车贷账户', type: 'liability', sub_type: 'consumer_loan', balance: '85000.00', currency: 'CNY', is_active: true, notes: '比亚迪汉EV车贷，3年期', original_amount: '120000.00', sync_mode: 'exact', last_synced_at: '2026-06-01' },
+  { id: 11, name: '招商银行信用卡', type: 'liability', sub_type: 'consumer_loan', balance: '12500.00', currency: 'CNY', is_active: true, notes: '每月10日还款，额度5万', original_amount: '12500.00', sync_mode: 'exact', last_synced_at: '2026-06-01' },
+  { id: 12, name: '花呗', type: 'liability', sub_type: 'consumer_loan', balance: '3200.00', currency: 'CNY', is_active: true, notes: '每月20日自动还款', original_amount: '3200.00', sync_mode: 'exact', last_synced_at: '2026-06-01' },
+  { id: 13, name: '朋友借款-张三', type: 'asset', sub_type: 'receivable', balance: '5000.00', currency: 'CNY', is_active: true, notes: '2025年借出，预计年底归还', original_amount: '', sync_mode: 'approximate', last_synced_at: null },
 ]
 
 export const mockCategories: Category[] = [

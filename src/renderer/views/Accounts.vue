@@ -238,6 +238,7 @@ import { useFormatter } from '../composables/useFormatter'
 import {
   BankOutlined, CreditCardOutlined, HomeOutlined, EditOutlined, DeleteOutlined,
   MoneyCollectOutlined, StockOutlined, WalletOutlined, PlusOutlined, SyncOutlined,
+  TransactionOutlined, TeamOutlined,
 } from '@vicons/antd'
 import type { Account } from '@shared/types'
 import Decimal from 'decimal.js'
@@ -270,15 +271,18 @@ function accountIcon(subType: string) {
     cash: MoneyCollectOutlined,
     bank: BankOutlined,
     investment: StockOutlined,
-    loan: HomeOutlined,
-    credit: CreditCardOutlined,
+    receivable: TransactionOutlined,
+    mortgage: HomeOutlined,
+    consumer_loan: CreditCardOutlined,
+    private_loan: TeamOutlined,
   }
   return map[subType] || WalletOutlined
 }
 
 function subTypeLabel(subType: string) {
   const map: Record<string, string> = {
-    cash: '现金', bank: '银行卡', investment: '投资', loan: '贷款', credit: '信用卡',
+    cash: '现金', bank: '银行卡', investment: '投资', receivable: '债权',
+    mortgage: '房贷', consumer_loan: '消费贷/信用卡', private_loan: '民间借款',
   }
   return map[subType] || subType
 }
@@ -341,8 +345,8 @@ const typeOptions: SelectOption[] = [
 ]
 const subTypeOptions = computed<SelectOption[]>(() =>
   accountForm.value.type === 'asset'
-    ? [{ label: '现金', value: 'cash' }, { label: '银行卡', value: 'bank' }, { label: '投资', value: 'investment' }]
-    : [{ label: '贷款', value: 'loan' }, { label: '信用卡', value: 'credit' }]
+    ? [{ label: '现金', value: 'cash' }, { label: '银行卡', value: 'bank' }, { label: '投资', value: 'investment' }, { label: '债权', value: 'receivable' }]
+    : [{ label: '房贷', value: 'mortgage' }, { label: '消费贷/信用卡', value: 'consumer_loan' }, { label: '民间借款', value: 'private_loan' }]
 )
 
 function openAdd() {

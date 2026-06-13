@@ -623,10 +623,10 @@ export function generateQuarterlyReport(year: number, quarter: number): Quarterl
 
   const totalAssets = liquidTotal + investmentTotal + fixedTotal
 
-  // 负债
-  const shortTermLiabilities = liabilityAccounts.filter((a: any) => a.sub_type === 'credit')
+  // 负债：短债=消费贷/信用卡，长债=房贷+民间借款
+  const shortTermLiabilities = liabilityAccounts.filter((a: any) => a.sub_type === 'consumer_loan')
   const shortTermTotal = shortTermLiabilities.reduce((s: number, a: any) => s + Number(a.balance), 0)
-  const longTermLiabilities = liabilityAccounts.filter((a: any) => a.sub_type === 'loan')
+  const longTermLiabilities = liabilityAccounts.filter((a: any) => a.sub_type === 'mortgage' || a.sub_type === 'private_loan')
   const longTermTotal = longTermLiabilities.reduce((s: number, a: any) => s + Number(a.balance), 0)
   const totalLiabilities = shortTermTotal + longTermTotal
 
