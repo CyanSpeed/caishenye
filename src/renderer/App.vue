@@ -227,6 +227,8 @@ html {
   /* 默认：绿涨红跌（国际惯例） */
   --color-profit: #10B981;
   --color-loss: #EF4444;
+  --color-profit-rgb: 16, 185, 129;
+  --color-loss-rgb: 239, 68, 68;
   --color-profit-bg: #F0FDF4;
   --color-loss-bg: #FEF2F2;
 }
@@ -235,6 +237,8 @@ html {
 html[data-color-mode="cn"] {
   --color-profit: #EF4444;
   --color-loss: #10B981;
+  --color-profit-rgb: 239, 68, 68;
+  --color-loss-rgb: 16, 185, 129;
   --color-profit-bg: #FEF2F2;
   --color-loss-bg: #F0FDF4;
   --accent-green: #EF4444;
@@ -245,6 +249,8 @@ html[data-color-mode="cn"] {
 html[data-color-mode="west"] {
   --color-profit: #10B981;
   --color-loss: #EF4444;
+  --color-profit-rgb: 16, 185, 129;
+  --color-loss-rgb: 239, 68, 68;
   --color-profit-bg: #F0FDF4;
   --color-loss-bg: #FEF2F2;
   --accent-green: #10B981;

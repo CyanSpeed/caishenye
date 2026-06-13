@@ -543,20 +543,20 @@ async function handleSync() {
   z-index: 1;
 }
 .icon--asset {
-  background: linear-gradient(135deg, rgba(54,179,126,0.22), rgba(54,179,126,0.12));
-  color: #2E9E6A;
+  background: linear-gradient(135deg, rgba(var(--color-profit-rgb), 0.22), rgba(var(--color-profit-rgb), 0.12));
+  color: var(--color-profit);
 }
 .icon--liability {
-  background: linear-gradient(135deg, rgba(255,86,48,0.22), rgba(255,86,48,0.12));
-  color: #E84A30;
+  background: linear-gradient(135deg, rgba(var(--color-loss-rgb), 0.22), rgba(var(--color-loss-rgb), 0.12));
+  color: var(--color-loss);
 }
 .type-badge {
   display: inline-flex; align-items: center; gap: 5px;
   font-size: 11px; font-weight: 600; padding: 4px 10px; border-radius: 6px;
   letter-spacing: 0.5px;
 }
-.type-badge--asset { background: rgba(54,179,126,0.16); color: #2E9E6A; }
-.type-badge--liability { background: rgba(255,86,48,0.16); color: #E84A30; }
+.type-badge--asset { background: rgba(var(--color-profit-rgb), 0.16); color: var(--color-profit); }
+.type-badge--liability { background: rgba(var(--color-loss-rgb), 0.16); color: var(--color-loss); }
 .status-dot { width: 5px; height: 5px; border-radius: 50%; display: inline-block; }
 .dot--active { background: currentColor; }
 .dot--inactive { background: var(--text-muted); }
@@ -644,9 +644,9 @@ async function handleSync() {
 .debt-progress {
   margin-top: 8px;
   padding: 10px 12px;
-  background: rgba(255, 86, 48, 0.10);
+  background: rgba(var(--color-loss-rgb), 0.10);
   border-radius: 8px;
-  border: 1px solid rgba(255, 86, 48, 0.18);
+  border: 1px solid rgba(var(--color-loss-rgb), 0.18);
 }
 
 .debt-progress-header {
@@ -665,14 +665,14 @@ async function handleSync() {
 .debt-progress-percent {
   font-size: 18px;
   font-weight: 700;
-  color: #36B37E;
+  color: var(--color-profit);
   font-variant-numeric: tabular-nums;
 }
 
 .debt-progress-bar {
   width: 100%;
   height: 8px;
-  background: rgba(255, 86, 48, 0.12);
+  background: rgba(var(--color-loss-rgb), 0.12);
   border-radius: 4px;
   overflow: hidden;
   margin-bottom: 8px;
@@ -680,7 +680,7 @@ async function handleSync() {
 
 .debt-progress-fill {
   height: 100%;
-  background: linear-gradient(90deg, #36B37E, #2ecc71);
+  background: linear-gradient(90deg, var(--color-profit), color-mix(in srgb, var(--color-profit) 70%, white));
   border-radius: 4px;
   transition: width 0.6s ease;
   min-width: 2px;
