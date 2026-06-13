@@ -265,6 +265,11 @@ export const IPC_CHANNELS = {
   GET_BACKUP_CONFIG: 'get-backup-config',
   UPDATE_BACKUP_CONFIG: 'update-backup-config',
   RUN_BACKUP: 'run-backup',
+  // Window Controls (frameless title bar)
+  WINDOW_MINIMIZE: 'window-minimize',
+  WINDOW_MAXIMIZE: 'window-maximize',
+  WINDOW_CLOSE: 'window-close',
+  WINDOW_IS_MAXIMIZED: 'window-is-maximized',
 } as const
 
 // ===== Image Recognition Types =====

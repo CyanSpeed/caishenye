@@ -28,6 +28,8 @@ function createWindow() {
     minWidth: 960,
     minHeight: 640,
     title: '财神爷 - 个人财务管理',
+    frame: false,           // 隐藏系统原生标题栏
+    titleBarStyle: 'hidden', // macOS: 隐藏标题栏但保留红绿灯
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
       contextIsolation: true,
@@ -41,6 +43,14 @@ function createWindow() {
   } else {
     mainWindow.loadFile(join(__dirname, '../../dist/index.html'))
   }
+
+  // 监听最大化/还原事件，通知渲染进程更新按钮图标
+  mainWindow.on('maximize', () => {
+    mainWindow?.webContents.send('window-maximized', true)
+  })
+  mainWindow.on('unmaximize', () => {
+    mainWindow?.webContents.send('window-maximized', false)
+  })
 }
 
 function registerIpcHandlers() {
@@ -188,6 +198,24 @@ function registerIpcHandlers() {
     const destPath = join(backupDir, `finance_auto_backup_${timestamp}.db`)
     copyFileSync(dbPath, destPath)
     return { success: true, filePath: destPath }
+  })
+
+  // ---- 无边框窗口控制 ----
+  ipcMain.handle(IPC_CHANNELS.WINDOW_MINIMIZE, () => {
+    mainWindow?.minimize()
+  })
+  ipcMain.handle(IPC_CHANNELS.WINDOW_MAXIMIZE, () => {
+    if (mainWindow?.isMaximized()) {
+      mainWindow.unmaximize()
+    } else {
+      mainWindow?.maximize()
+    }
+  })
+  ipcMain.handle(IPC_CHANNELS.WINDOW_CLOSE, () => {
+    mainWindow?.close()
+  })
+  ipcMain.handle(IPC_CHANNELS.WINDOW_IS_MAXIMIZED, () => {
+    return mainWindow?.isMaximized() ?? false
   })
 }
 

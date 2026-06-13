@@ -67,6 +67,18 @@ const api = {
   updateBackupConfig: (config: { enabled: boolean; directory: string; frequency: string }) =>
     ipcRenderer.invoke(IPC_CHANNELS.UPDATE_BACKUP_CONFIG, config),
   runBackup: () => ipcRenderer.invoke(IPC_CHANNELS.RUN_BACKUP),
+
+  // Window Controls (frameless title bar)
+  minimizeWindow: () => ipcRenderer.invoke(IPC_CHANNELS.WINDOW_MINIMIZE),
+  maximizeWindow: () => ipcRenderer.invoke(IPC_CHANNELS.WINDOW_MAXIMIZE),
+  closeWindow: () => ipcRenderer.invoke(IPC_CHANNELS.WINDOW_CLOSE),
+  isMaximized: () => ipcRenderer.invoke(IPC_CHANNELS.WINDOW_IS_MAXIMIZED),
+  onMaximizedChange: (callback: (maximized: boolean) => void) => {
+    ipcRenderer.on('window-maximized', (_event, maximized) => callback(maximized))
+  },
+  removeMaximizedListener: () => {
+    ipcRenderer.removeAllListeners('window-maximized')
+  },
 }
 
 contextBridge.exposeInMainWorld('electronAPI', api)

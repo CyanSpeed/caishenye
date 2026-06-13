@@ -2,58 +2,65 @@
   <n-config-provider :theme="currentTheme" :theme-overrides="themeOverrides" :locale="zhCN" :date-locale="dateZhCN">
     <n-message-provider>
       <n-dialog-provider>
-      <n-layout class="app-layout" has-sider>
-        <n-layout-sider
-          v-model:collapsed="collapsed"
-          bordered
-          show-trigger
-          collapse-mode="width"
-          :collapsed-width="64"
-          :width="240"
-          :native-scrollbar="false"
-          class="sidebar-container"
-        >
-          <div class="sidebar-brand">
-            <div class="brand-icon">财</div>
-            <Transition name="brand-fade">
-              <span v-show="!collapsed" :collapsed="collapsed" class="brand-text">财神爷</span>
-            </Transition>
-          </div>
+      <div class="app-shell">
+        <!-- 自定义标题栏（隐藏原生标题栏后） -->
+        <TitleBar />
 
-          <n-menu
-            inverted
-            :value="currentRoute"
-            :options="menuOptions"
-            :collapsed="collapsed"
-            :collapsed-width="64"
-            :collapsed-icon-size="20"
-            @update:value="handleMenuClick"
-          />
+        <div class="app-body">
+          <n-layout class="app-layout" has-sider>
+            <n-layout-sider
+              v-model:collapsed="collapsed"
+              bordered
+              show-trigger
+              collapse-mode="width"
+              :collapsed-width="64"
+              :width="240"
+              :native-scrollbar="false"
+              class="sidebar-container"
+            >
+              <div class="sidebar-brand">
+                <div class="brand-icon">财</div>
+                <Transition name="brand-fade">
+                  <span v-show="!collapsed" :collapsed="collapsed" class="brand-text">财神爷</span>
+                </Transition>
+              </div>
 
-          <div class="sidebar-spacer" />
-          <div class="sidebar-footer">
-            <n-button text @click="isDark = !isDark">
-              <template #icon>
-                <Sunny v-if="isDark" :size="18" />
-                <Moon v-else :size="18" />
-              </template>
-            </n-button>
-            <n-button text @click="router.push('/settings')">
-              <template #icon>
-                <Settings :size="18" />
-              </template>
-            </n-button>
-          </div>
-        </n-layout-sider>
+              <n-menu
+                inverted
+                :value="currentRoute"
+                :options="menuOptions"
+                :collapsed="collapsed"
+                :collapsed-width="64"
+                :collapsed-icon-size="20"
+                @update:value="handleMenuClick"
+              />
 
-        <n-layout-content class="main-content">
-          <router-view v-slot="{ Component }">
-            <Transition name="page-fade" mode="out-in">
-              <component :is="Component" />
-            </Transition>
-          </router-view>
-        </n-layout-content>
-      </n-layout>
+              <div class="sidebar-spacer" />
+              <div class="sidebar-footer">
+                <n-button text @click="isDark = !isDark">
+                  <template #icon>
+                    <Sunny v-if="isDark" :size="48" />
+                    <Moon v-else :size="48" />
+                  </template>
+                </n-button>
+                <n-button text @click="router.push('/settings')">
+                  <template #icon>
+                    <Settings :size="48" />
+                  </template>
+                </n-button>
+              </div>
+            </n-layout-sider>
+
+            <n-layout-content class="main-content">
+              <router-view v-slot="{ Component }">
+                <Transition name="page-fade" mode="out-in">
+                  <component :is="Component" />
+                </Transition>
+              </router-view>
+            </n-layout-content>
+          </n-layout>
+        </div>
+      </div>
       </n-dialog-provider>
     </n-message-provider>
   </n-config-provider>
@@ -64,6 +71,7 @@ import { ref, computed, h, watchEffect, defineComponent } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { darkTheme, NIcon, zhCN, dateZhCN } from 'naive-ui'
 import type { MenuOption } from 'naive-ui'
+import TitleBar from './components/TitleBar.vue'
 import {
   DashboardOutlined, AccountBookOutlined,
   WalletOutlined, StockOutlined, GiftOutlined, FileTextOutlined,
@@ -299,13 +307,28 @@ html, body, #app {
 ::-webkit-scrollbar-thumb { background: var(--scrollbar-thumb); border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--scrollbar-thumb-hover); }
 
+/* 应用外壳：全屏布局，标题栏 + 主体区域 */
+.app-shell {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  width: 100vw;
+  overflow: hidden;
+}
+
+.app-body {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
 /* Naive UI sider flex column — ensures footer sticks to bottom */
 .app-layout {
-  height: 100vh !important;
+  height: 100% !important;
 }
 
 .app-layout .n-layout-sider {
-  height: 100vh !important;
+  height: 100% !important;
 }
 
 .app-layout .n-layout-sider .n-scrollbar,
@@ -368,7 +391,7 @@ html, body, #app {
 .sidebar-spacer { flex: 1; }
 .sidebar-footer {
   padding: 16px;
-  display: flex; justify-content: center; gap: 8px;
+  display: flex; justify-content: center; gap: 24px;
   border-top: 1px solid var(--border-subtle);
   color: var(--footer-text);
   flex-shrink: 0;
@@ -381,7 +404,7 @@ html, body, #app {
   padding: clamp(12px, 1.5vw, 24px);
   flex: 1;
   min-width: 0;
-  height: 100vh;
+  height: 100%;
 }
 
 .page-fade-enter-active, .page-fade-leave-active {

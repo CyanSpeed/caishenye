@@ -37,7 +37,7 @@ export function renderReportHTML(data: QuarterlyReportData, colorMode: 'cn' | 'w
 
   // 家庭成员信息
   const membersHTML = meta.members.map(m =>
-    `<div><span>${m.role}：</span><strong>${m.name})</strong></div>`
+    `<div><span>${m.role}：</span><strong>${m.name}</strong></div>`
   ).join('\n')
 
   // 资产负债表 - 流动资产
