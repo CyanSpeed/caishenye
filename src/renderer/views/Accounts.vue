@@ -42,44 +42,51 @@
         v-for="account in filteredAccounts"
         :key="account.id"
         class="glass-card account-card"
-        :class="{ 'card--expanded': expandedId === account.id }"
+        :class="{ 'card--expanded': expandedId === account.id, 'card--liability': account.type === 'liability' }"
         @click="expandedId = expandedId === account.id ? null : account.id"
       >
-        <div class="card-top">
+        <!-- Row 1: Icon + Type Badge -->
+        <div class="card-head">
           <div class="account-icon" :class="'icon--' + account.type">
-            <component :is="accountIcon(account.sub_type)" :size="20" />
+            <component :is="accountIcon(account.sub_type)" :size="22" />
           </div>
-          <div class="account-info">
-            <div class="account-name">{{ account.name }}</div>
-            <div class="account-type">{{ subTypeLabel(account.sub_type) }}</div>
-            <div class="account-sync-info">
-              <span v-if="account.sync_mode === 'exact'" class="sync-badge sync-badge--exact">精确同步</span>
-              <span v-else class="sync-badge sync-badge--approx">近似记账</span>
-              <span v-if="account.last_synced_at" class="sync-time">上次同步: {{ formatDate(account.last_synced_at) }}</span>
-            </div>
+          <span class="type-badge" :class="'type-badge--' + account.type">
+            {{ account.type === 'asset' ? '资产' : '负债' }}
+            <span class="status-dot" :class="account.is_active ? 'dot--active' : 'dot--inactive'" />
+          </span>
+        </div>
+
+        <!-- Row 2: Name + Balance (prominent) -->
+        <div class="card-body">
+          <p class="account-name">{{ account.name }}</p>
+          <p class="account-balance" :class="account.type === 'asset' ? 'text-profit' : 'text-loss'">
+            {{ account.type === 'liability' ? '-' : '' }}{{ currencyPlain(account.balance) }}
+          </p>
+        </div>
+
+        <!-- Row 3: Sync info + Actions -->
+        <div class="card-foot" @click.stop>
+          <div class="account-sync-info">
+            <span v-if="account.sync_mode === 'exact'" class="sync-badge sync-badge--exact">精确同步</span>
+            <span v-else class="sync-badge sync-badge--approx">近似记账</span>
+            <span v-if="account.last_synced_at" class="sync-time">上次: {{ formatDate(account.last_synced_at) }}</span>
           </div>
-          <div class="card-actions" @click.stop>
-            <n-button text size="small" type="primary" @click="openSync(account)" class="action-btn" title="同步余额">
+          <div class="card-actions">
+            <n-button text size="tiny" type="primary" @click="openSync(account)" class="action-btn" title="同步余额">
               <template #icon><SyncOutlined /></template>
             </n-button>
-            <n-button text size="small" @click="openEdit(account)" class="action-btn" title="编辑">
+            <n-button text size="tiny" @click="openEdit(account)" class="action-btn" title="编辑">
               <template #icon><EditOutlined /></template>
             </n-button>
-            <n-button text size="small" type="error" @click="handleDelete(account)" class="action-btn" title="删除">
+            <n-button text size="tiny" type="error" @click="handleDelete(account)" class="action-btn" title="删除">
               <template #icon><DeleteOutlined /></template>
             </n-button>
           </div>
-          <div class="account-balance" :class="account.type === 'asset' ? 'text-profit' : 'text-loss'">
-            {{ account.type === 'liability' ? '-' : '' }}{{ currencyPlain(account.balance) }}
-          </div>
         </div>
 
+        <!-- Expand Detail -->
         <Transition name="expand">
           <div v-if="expandedId === account.id" class="card-detail">
-            <div class="detail-row">
-              <span class="detail-label">类型</span>
-              <span class="detail-value">{{ account.type === 'asset' ? '资产' : '负债' }}</span>
-            </div>
             <div class="detail-row">
               <span class="detail-label">子类型</span>
               <span class="detail-value">{{ subTypeLabel(account.sub_type) }}</span>
@@ -87,13 +94,6 @@
             <div class="detail-row">
               <span class="detail-label">币种</span>
               <span class="detail-value">{{ account.currency }}</span>
-            </div>
-            <div class="detail-row">
-              <span class="detail-label">状态</span>
-              <span class="detail-value">
-                <span class="status-dot" :class="account.is_active ? 'dot--active' : 'dot--inactive'" />
-                {{ account.is_active ? '启用' : '停用' }}
-              </span>
             </div>
             <div class="detail-row">
               <span class="detail-label">记账模式</span>
@@ -113,7 +113,7 @@
                 {{ investmentReturn(account.id)! >= 0 ? '+' : '' }}{{ (investmentReturn(account.id)! * 100).toFixed(2) }}%
               </span>
             </div>
-            <div v-if="account.notes" class="detail-row">
+            <div v-if="account.notes" class="detail-row detail-row--notes">
               <span class="detail-label">备注</span>
               <span class="detail-value detail-notes">{{ account.notes }}</span>
             </div>
@@ -498,33 +498,126 @@ async function handleSync() {
 .card-grid-leave-to { opacity: 0; transform: scale(0.92); }
 .card-grid-move { transition: transform 0.3s ease; }
 
-.account-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: clamp(12px, 1vw, 18px); }
-.glass-card.account-card { padding: 16px 20px; cursor: pointer; transition: all 0.25s ease; }
-.glass-card.account-card:hover { transform: translateY(-2px); }
-.card-top { display: flex; align-items: center; gap: 12px; }
-.account-icon { width: 40px; height: 40px; border-radius: 10px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
-.icon--asset { background: rgba(54,179,126,0.12); color: #36B37E; }
-.icon--liability { background: rgba(255,86,48,0.12); color: #FF5630; }
-.account-info { flex: 1; min-width: 0; }
-.account-name { font-size: 16px; font-weight: 600; color: var(--text-primary); }
-.account-type { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
-.account-balance { font-size: 18px; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.account-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: clamp(14px, 1.2vw, 20px); }
+.glass-card.account-card {
+  padding: 20px 24px;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  position: relative;
+  overflow: hidden;
+}
+.glass-card.account-card::after {
+  content: '';
+  position: absolute;
+  top: 0; right: 0;
+  width: 140px; height: 140px;
+  border-radius: 50%;
+  transform: translate(40px, -40px);
+  opacity: 0.03;
+  pointer-events: none;
+  transition: opacity 0.3s ease;
+}
+.glass-card.account-card:hover::after { opacity: 0.06; }
+.glass-card.account-card::after { background: var(--color-profit); }
+.glass-card.account-card.card--liability::after { background: var(--color-loss); }
 
-/* Sync info */
-.account-sync-info { display: flex; align-items: center; gap: 8px; margin-top: 4px; }
-.sync-badge { font-size: 11px; padding: 2px 6px; border-radius: 4px; font-weight: 500; }
-.sync-badge--exact { background: rgba(76,154,255,0.12); color: #4C9AFF; }
-.sync-badge--approx { background: rgba(255,197,0,0.12); color: #FFC500; }
-.sync-time { font-size: 11px; color: var(--text-muted); }
+.glass-card.account-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 8px 25px rgba(0,0,0,0.08);
+}
 
-.card-detail { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--border-subtle); display: flex; flex-direction: column; gap: 8px; }
-.detail-row { display: flex; justify-content: space-between; align-items: center; font-size: 14px; }
-.detail-label { color: var(--text-muted); }
-.detail-value { color: var(--text-primary); display: flex; align-items: center; gap: 6px; }
-.detail-row.hint { color: var(--text-muted); font-style: italic; }
-.status-dot { width: 6px; height: 6px; border-radius: 50%; }
-.dot--active { background: var(--color-profit); box-shadow: 0 0 6px var(--color-profit); }
+/* Row 1: Head — icon + type badge */
+.card-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.account-icon {
+  width: 42px; height: 42px; border-radius: 12px;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+  position: relative;
+  z-index: 1;
+}
+.icon--asset {
+  background: linear-gradient(135deg, rgba(54,179,126,0.15), rgba(54,179,126,0.08));
+  color: #36B37E;
+}
+.icon--liability {
+  background: linear-gradient(135deg, rgba(255,86,48,0.15), rgba(255,86,48,0.08));
+  color: #FF5630;
+}
+.type-badge {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-size: 11px; font-weight: 600; padding: 4px 10px; border-radius: 6px;
+  letter-spacing: 0.5px;
+}
+.type-badge--asset { background: rgba(54,179,126,0.10); color: #36B37E; }
+.type-badge--liability { background: rgba(255,86,48,0.10); color: #FF5630; }
+.status-dot { width: 5px; height: 5px; border-radius: 50%; display: inline-block; }
+.dot--active { background: currentColor; }
 .dot--inactive { background: var(--text-muted); }
+
+/* Row 2: Body — name + big balance */
+.card-body {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+}
+.account-name {
+  font-size: 15px; font-weight: 600;
+  color: var(--text-primary);
+  margin: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 55%;
+}
+.account-balance {
+  font-size: 26px; font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.5px;
+  margin: 0;
+  line-height: 1.1;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+/* Row 3: Foot — sync left, actions right */
+.card-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 28px;
+}
+.account-sync-info { display: flex; align-items: center; gap: 6px; }
+.sync-badge { font-size: 10px; padding: 2px 8px; border-radius: 5px; font-weight: 600; letter-spacing: 0.3px; }
+.sync-badge--exact { background: rgba(76,154,255,0.10); color: #4C9AFF; }
+.sync-badge--approx { background: rgba(245,158,11,0.10); color: #F59E0B; }
+.sync-time { font-size: 11px; color: var(--text-muted); }
+.card-actions { display: flex; gap: 2px; align-items: center; }
+.action-btn { opacity: 0.4; transition: opacity 0.2s; }
+.action-btn:hover { opacity: 1; }
+.glass-card.account-card:hover .action-btn { opacity: 0.6; }
+
+/* Expanded detail */
+.card-detail {
+  margin-top: 4px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border-subtle);
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+.detail-row { display: flex; justify-content: space-between; align-items: center; font-size: 13px; }
+.detail-row--notes { align-items: flex-start; }
+.detail-label { color: var(--text-muted); font-size: 12px; }
+.detail-value { color: var(--text-primary); display: flex; align-items: center; gap: 6px; font-weight: 500; }
+.detail-notes { font-size: 13px; max-width: 200px; word-break: break-all; text-align: right; }
 
 .text-green { color: var(--color-profit); }
 .text-red { color: var(--color-loss); }
