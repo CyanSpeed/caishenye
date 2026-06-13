@@ -516,11 +516,11 @@ async function handleSync() {
   width: 140px; height: 140px;
   border-radius: 50%;
   transform: translate(40px, -40px);
-  opacity: 0.03;
+  opacity: 0.06;
   pointer-events: none;
   transition: opacity 0.3s ease;
 }
-.glass-card.account-card:hover::after { opacity: 0.06; }
+.glass-card.account-card:hover::after { opacity: 0.12; }
 .glass-card.account-card::after { background: var(--color-profit); }
 .glass-card.account-card.card--liability::after { background: var(--color-loss); }
 
@@ -543,20 +543,20 @@ async function handleSync() {
   z-index: 1;
 }
 .icon--asset {
-  background: linear-gradient(135deg, rgba(54,179,126,0.15), rgba(54,179,126,0.08));
-  color: #36B37E;
+  background: linear-gradient(135deg, rgba(54,179,126,0.22), rgba(54,179,126,0.12));
+  color: #2E9E6A;
 }
 .icon--liability {
-  background: linear-gradient(135deg, rgba(255,86,48,0.15), rgba(255,86,48,0.08));
-  color: #FF5630;
+  background: linear-gradient(135deg, rgba(255,86,48,0.22), rgba(255,86,48,0.12));
+  color: #E84A30;
 }
 .type-badge {
   display: inline-flex; align-items: center; gap: 5px;
   font-size: 11px; font-weight: 600; padding: 4px 10px; border-radius: 6px;
   letter-spacing: 0.5px;
 }
-.type-badge--asset { background: rgba(54,179,126,0.10); color: #36B37E; }
-.type-badge--liability { background: rgba(255,86,48,0.10); color: #FF5630; }
+.type-badge--asset { background: rgba(54,179,126,0.16); color: #2E9E6A; }
+.type-badge--liability { background: rgba(255,86,48,0.16); color: #E84A30; }
 .status-dot { width: 5px; height: 5px; border-radius: 50%; display: inline-block; }
 .dot--active { background: currentColor; }
 .dot--inactive { background: var(--text-muted); }
@@ -596,13 +596,13 @@ async function handleSync() {
 }
 .account-sync-info { display: flex; align-items: center; gap: 6px; }
 .sync-badge { font-size: 10px; padding: 2px 8px; border-radius: 5px; font-weight: 600; letter-spacing: 0.3px; }
-.sync-badge--exact { background: rgba(76,154,255,0.10); color: #4C9AFF; }
-.sync-badge--approx { background: rgba(245,158,11,0.10); color: #F59E0B; }
+.sync-badge--exact { background: rgba(76,154,255,0.15); color: #3B82F6; }
+.sync-badge--approx { background: rgba(245,158,11,0.15); color: #D97706; }
 .sync-time { font-size: 11px; color: var(--text-muted); }
 .card-actions { display: flex; gap: 2px; align-items: center; }
-.action-btn { opacity: 0.4; transition: opacity 0.2s; }
+.action-btn { opacity: 0.55; transition: opacity 0.2s; }
 .action-btn:hover { opacity: 1; }
-.glass-card.account-card:hover .action-btn { opacity: 0.6; }
+.glass-card.account-card:hover .action-btn { opacity: 0.75; }
 
 /* Expanded detail */
 .card-detail {
@@ -644,9 +644,9 @@ async function handleSync() {
 .debt-progress {
   margin-top: 8px;
   padding: 10px 12px;
-  background: rgba(255, 86, 48, 0.06);
+  background: rgba(255, 86, 48, 0.10);
   border-radius: 8px;
-  border: 1px solid rgba(255, 86, 48, 0.12);
+  border: 1px solid rgba(255, 86, 48, 0.18);
 }
 
 .debt-progress-header {
