@@ -379,8 +379,8 @@ export function useFinance() {
       }
     })
 
-    // Top 5 by daily cost
-    return assetsWithCost.sort((a, b) => b.dailyCost - a.dailyCost).slice(0, 5)
+    // 按当前估值降序取前5个最贵资产
+    return assetsWithCost.sort((a, b) => b.currentValue - a.currentValue).slice(0, 5)
   })
 
   // ---- All Physical Assets Depreciation (for asset selector) ----
