@@ -111,7 +111,10 @@ export interface NetWorthSnapshot {
   net_worth: string
 }
 
-// ===== Quarterly Report =====
+// ===== 财务报告 =====
+
+/** 报告周期类型 */
+export type ReportPeriod = 'monthly' | 'quarterly' | 'yearly'
 
 export interface BalanceSheetItem {
   name: string
@@ -142,17 +145,19 @@ export interface KPIData {
   barPercentage: number
 }
 
-export interface QuarterlyReportData {
+export interface ReportData {
   meta: {
     familyName: string
     members: { name: string; role: string; age: number }[]
     city: string
     preparer: string
     reviewer: string
+    period: ReportPeriod
     year: number
-    quarter: number
-    quarterLabel: string
-    dateRange: string
+    periodValue: number       // 月(1-12) / 季度(1-4) / 年(固定1)
+    periodLabel: string       // "2025年6月" / "2025年第二季度" / "2025年"
+    dateRange: string         // "6月1日 — 6月30日" / "4月1日 — 6月30日" / "1月1日 — 12月31日"
+    comparisonLabel: string   // "vs 上月" / "vs 上季" / "vs 上年"
     generatedAt: string
     dataNote: string
   }
@@ -160,7 +165,7 @@ export interface QuarterlyReportData {
     totalAssets: number
     totalLiabilities: number
     netWorth: number
-    quarterlyNetSavings: number
+    periodNetSavings: number
     savingsRate: number
     totalAssetsChange: number
     totalLiabilitiesChange: number
@@ -213,7 +218,23 @@ export interface QuarterlyReportData {
     assetComposition: { name: string; value: number; percentage: number }[]
     expenseComposition: { name: string; value: number; percentage: number }[]
   }
+  /** 资产负债趋势（当期 vs 上期快照对比） */
+  assetTrend: TrendItem[]
+  liabilityTrend: TrendItem[]
+  netWorthTrendItem: TrendItem  // 净资产对比
 }
+
+/** 资产负债趋势项 */
+export interface TrendItem {
+  name: string
+  icon: string           // emoji 图标
+  prevValue: number       // 上期快照值
+  currValue: number       // 当期快照值
+  changePct: number       // 变动百分比
+}
+
+/** @deprecated 使用 ReportData 替代 */
+export type QuarterlyReportData = ReportData
 
 // ===== IPC Channel Names =====
 

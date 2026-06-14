@@ -112,6 +112,16 @@ function createTables(db: Database.Database) {
       note TEXT DEFAULT '',
       FOREIGN KEY (account_id) REFERENCES accounts(id)
     );
+
+    CREATE TABLE IF NOT EXISTS physical_asset_snapshots (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      physical_asset_id INTEGER NOT NULL,
+      date TEXT NOT NULL,
+      old_value TEXT NOT NULL,
+      new_value TEXT NOT NULL,
+      note TEXT DEFAULT '',
+      FOREIGN KEY (physical_asset_id) REFERENCES physical_assets(id)
+    );
   `)
 }
 

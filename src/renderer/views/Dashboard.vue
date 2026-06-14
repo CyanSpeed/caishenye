@@ -574,15 +574,15 @@ function initSankeyChart() {
         layout: 'none',
         left: 20,
         right: 120,
-        top: 20,
-        bottom: 20,
-        nodeWidth: 20,
-        nodeGap: 20,
+        top: 10,
+        bottom: 10,
+        nodeWidth: 30,
+        nodeGap: 24,
         orient: 'horizontal',
         draggable: false,
         label: {
           color: textColor,
-          fontSize: 14,
+          fontSize: 12,
           formatter: '{b}\n¥{c}',
         },
         lineStyle: {
@@ -599,7 +599,7 @@ function initSankeyChart() {
           const isIncome = incomeNodes.some(i => i.name === n.name)
           return {
             name: n.name,
-            itemStyle: { color: isIncome ? '#10B981' : '#F87171' },
+            itemStyle: { color: isIncome ? '#F87171'  : '#10B981'},
           }
         }),
         links: sankeyLinks,
@@ -871,7 +871,7 @@ onUnmounted(() => {
 }
 
 .chart-box { width: 100%; height: clamp(280px, 24vh, 440px); min-height: 200px; }
-.chart-box--tall { height: clamp(320px, 28vh, 500px); min-height: 260px; }
+.chart-box--tall { height: clamp(340px, 28vh, 520px); min-height: 260px; }
 
 /* Recent */
 .recent-card { display: flex; flex-direction: column; gap: 16px; }

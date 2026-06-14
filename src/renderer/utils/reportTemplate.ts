@@ -1,4 +1,4 @@
-import type { QuarterlyReportData } from '@shared/types'
+import type { ReportData, TrendItem } from '@shared/types'
 
 /** 格式化金额：千分位 + 保留整数 */
 function fmtAmount(n: number): string {
@@ -18,14 +18,14 @@ function fmtPct(n: number): string {
   return `${n.toFixed(1)}%`
 }
 
-/** 格式化变动百分比（带箭头） */
-function fmtChange(n: number): string {
-  if (n > 0) return `▲ +${n.toFixed(1)}% vs 上季`
-  if (n < 0) return `▼ ${n.toFixed(1)}% vs 上季`
+/** 格式化变动百分比（带箭头，使用上报周期对比标签） */
+function fmtChange(n: number, comparisonLabel: string): string {
+  if (n > 0) return `▲ +${n.toFixed(1)}% ${comparisonLabel}`
+  if (n < 0) return `▼ ${n.toFixed(1)}% ${comparisonLabel}`
   return '— 持平'
 }
 
-export function renderReportHTML(data: QuarterlyReportData, colorMode: 'cn' | 'west' = 'west'): string {
+export function renderReportHTML(data: ReportData, colorMode: 'cn' | 'west' = 'west'): string {
   // 根据颜色模式决定盈利/亏损配色
   const profitColor = colorMode === 'cn' ? '#EF4444' : '#10B981'
   const lossColor = colorMode === 'cn' ? '#10B981' : '#EF4444'
@@ -33,7 +33,7 @@ export function renderReportHTML(data: QuarterlyReportData, colorMode: 'cn' | 'w
   const lossColorDark = colorMode === 'cn' ? '#059669' : '#DC2626'
   const profitBg = colorMode === 'cn' ? '#FEF2F2' : '#F0FDF4'
   const lossBg = colorMode === 'cn' ? '#F0FDF4' : '#FEF2F2'
-  const { meta, summary, balanceSheet, incomeStatement, cashFlow, kpis, assetStructure } = data
+  const { meta, summary, balanceSheet, incomeStatement, kpis, assetStructure, assetTrend, liabilityTrend, netWorthTrendItem } = data
 
   // 家庭成员信息
   const membersHTML = meta.members.map(m =>
@@ -47,11 +47,6 @@ export function renderReportHTML(data: QuarterlyReportData, colorMode: 'cn' | 'w
 
   // 资产负债表 - 投资资产
   const investRowsHTML = balanceSheet.assets.investment.map(item =>
-    `<tr class="sub-item"><td>${item.name}</td><td class="amount">${fmtAmount(item.amount)}</td><td class="pct">${fmtPct(item.percentage)}</td><td class="note">${item.note}</td></tr>`
-  ).join('\n')
-
-  // 资产负债表 - 固定资产
-  const fixedRowsHTML = balanceSheet.assets.fixed.map(item =>
     `<tr class="sub-item"><td>${item.name}</td><td class="amount">${fmtAmount(item.amount)}</td><td class="pct">${fmtPct(item.percentage)}</td><td class="note">${item.note}</td></tr>`
   ).join('\n')
 
@@ -80,20 +75,100 @@ export function renderReportHTML(data: QuarterlyReportData, colorMode: 'cn' | 'w
     `<tr class="sub-item"><td>${item.name}</td><td class="amount negative">-${fmtAmount(item.amount)}</td><td class="pct">${fmtPct(item.percentage)}</td></tr>`
   ).join('\n')
 
-  // 现金流 - 经营性
-  const cfOperatingHTML = cashFlow.operating.map(item =>
-    `<tr><td>${item.name}</td><td class="amount ${item.amount >= 0 ? 'positive' : 'negative'}">${item.amount >= 0 ? '+' : ''}${fmtAmount(item.amount)}</td><td class="note">${item.note}</td></tr>`
-  ).join('\n')
+  // ===== 资金流量图（Bar-Negative 风格 SVG） =====
+  // 收入分类（正值）+ 支出分类（负值）
+  const cashFlowItems: { name: string; amount: number; type: 'income' | 'expense' }[] = [
+    ...incomeStatement.income.categories.map(c => ({ name: c.name, amount: c.amount, type: 'income' as const })),
+    ...incomeStatement.expense.fixed.map(c => ({ name: c.name, amount: -c.amount, type: 'expense' as const })),
+    ...incomeStatement.expense.variable.map(c => ({ name: c.name, amount: -c.amount, type: 'expense' as const })),
+  ].sort((a, b) => Math.abs(b.amount) - Math.abs(a.amount))
 
-  // 现金流 - 投资性
-  const cfInvestingHTML = cashFlow.investing.map(item =>
-    `<tr><td>${item.name}</td><td class="amount ${item.amount >= 0 ? 'positive' : 'negative'}">${item.amount >= 0 ? '+' : ''}${fmtAmount(item.amount)}</td><td class="note">${item.note}</td></tr>`
-  ).join('\n')
+  const netFlow = incomeStatement.income.total - incomeStatement.expense.total
+  const maxAbs = Math.max(
+    ...cashFlowItems.map(i => Math.abs(i.amount)),
+    Math.abs(netFlow),
+    1,
+  )
 
-  // 现金流 - 融资性
-  const cfFinancingHTML = cashFlow.financing.map(item =>
-    `<tr><td>${item.name}</td><td class="amount ${item.amount >= 0 ? 'positive' : 'negative'}">${item.amount >= 0 ? '+' : ''}${fmtAmount(item.amount)}</td><td class="note">${item.note}</td></tr>`
-  ).join('\n')
+  // SVG 布局参数
+  const barH = 28          // 每根柱高度
+  const barGap = 8         // 柱间距
+  const netGap = 16        // 净现金流上方间距
+  const chartPadTop = 20
+  const chartPadBottom = 10
+  const leftLabelW = 120   // 左侧标签区宽度
+  const rightLabelW = 130  // 右侧标签区宽度
+  const itemCount = cashFlowItems.length
+
+  // SVG 总高度
+  const svgH = chartPadTop + itemCount * (barH + barGap) + netGap + barH + chartPadBottom
+
+  const svgW = 800
+  const midX = leftLabelW + (svgW - leftLabelW - rightLabelW) / 2  // 中心轴线 x 坐标
+  const barMaxW = midX - leftLabelW - 20  // 单侧最大柱宽
+
+  function buildBar(y: number, amount: number, label: string, isNet: boolean): string {
+    const absAmt = Math.abs(amount)
+    const barW = maxAbs > 0 ? (absAmt / maxAbs) * barMaxW : 0
+    const isPositive = amount >= 0
+    const fillColor = isPositive ? profitColor : lossColor
+
+    const rectX = isPositive ? midX : midX - barW
+    const rectW = Math.max(barW, 2)
+
+    // 金额标签（柱外侧）
+    const amtLabel = `${amount >= 0 ? '+' : ''}${fmtWan(amount)}`
+    const labelX = isPositive ? rectX + rectW + 8 : rectX - 8
+    const labelAnchor = isPositive ? 'start' : 'end'
+
+    // 分类名标签（靠近中线）
+    const nameX = isPositive ? midX - 12 : midX + 12
+    const nameAnchor = isPositive ? 'end' : 'start'
+
+    return `
+      <g>
+        <rect x="${rectX}" y="${y}" width="${rectW}" height="${barH}" rx="${isNet ? 6 : 4}" fill="${fillColor}" fill-opacity="${isNet ? 1 : 0.82}" />
+        <text x="${labelX}" y="${y + barH / 2 + 5}" text-anchor="${labelAnchor}" font-size="${isNet ? 14 : 12}" font-weight="${isNet ? 700 : 500}" fill="${isNet ? '#1a365d' : '#4a5568'}">${amtLabel}</text>
+        <text x="${nameX}" y="${y + barH / 2 + 5}" text-anchor="${nameAnchor}" font-size="12" fill="#718096">${label}</text>
+      </g>`
+  }
+
+  // 分类名称简写（超过4字截断）
+  function shortName(name: string): string {
+    return name.length > 5 ? name.slice(0, 5) + '…' : name
+  }
+
+  let svgBarsHTML = ''
+  let currentY = chartPadTop
+
+  cashFlowItems.forEach(item => {
+    svgBarsHTML += buildBar(currentY, item.amount, shortName(item.name), false)
+    currentY += barH + barGap
+  })
+
+  // 分隔线 + 净现金流
+  currentY += netGap - barGap
+  const sepY = currentY - 8
+  svgBarsHTML += `<line x1="${midX - barMaxW - 20}" y1="${sepY}" x2="${midX + barMaxW + 20}" y2="${sepY}" stroke="#cbd5e0" stroke-width="1" stroke-dasharray="4,4" />`
+  svgBarsHTML += buildBar(currentY, netFlow, '净现金流', true)
+
+  const cashFlowChartSVG = `
+    <div style="display:flex;justify-content:center;margin:10px 0;">
+      <svg viewBox="0 0 ${svgW} ${svgH}" width="100%" style="max-width:${svgW}px;font-family:inherit;">
+        <!-- 中心纵轴 -->
+        <line x1="${midX}" y1="0" x2="${midX}" y2="${svgH}" stroke="#e2e8f0" stroke-width="1.5" />
+        <!-- 左侧标签 -->
+        <text x="${midX - 12}" y="16" text-anchor="end" font-size="11" fill="#a0aec0" font-weight="500">支出</text>
+        <!-- 右侧标签 -->
+        <text x="${midX + 12}" y="16" text-anchor="start" font-size="11" fill="#a0aec0" font-weight="500">收入</text>
+        ${svgBarsHTML}
+      </svg>
+    </div>
+    <p style="text-align:center;font-size:0.85em;color:#a0aec0;margin-top:6px;">
+      ${meta.period === 'monthly' ? '月度' : meta.period === 'quarterly' ? '季度' : '年度'}资金流量 ·
+      收入 ¥${fmtWan(incomeStatement.income.total)} · 支出 ¥${fmtWan(incomeStatement.expense.total)} ·
+      净现金流 ${netFlow >= 0 ? '+' : ''}¥${fmtWan(netFlow)}
+    </p>`
 
   // KPI 卡片
   const kpiCardsHTML = kpis.map(kpi => {
@@ -108,31 +183,65 @@ export function renderReportHTML(data: QuarterlyReportData, colorMode: 'cn' | 'w
       </div>`
   }).join('\n')
 
-  // 资产构成条形图
-  const assetBarsHTML = assetStructure.assetComposition.map(item => `
-    <div style="margin-bottom:12px;">
-      <div style="display:flex;justify-content:space-between;margin-bottom:4px;"><span>${item.name}</span><span style="font-weight:600;">${fmtPct(item.percentage)}</span></div>
-      <div style="height:24px;background:#edf2f7;border-radius:4px;overflow:hidden;"><div style="width:${Math.max(item.percentage, 15)}%;height:100%;background:linear-gradient(90deg,#4299e1,#3182ce);border-radius:4px;display:flex;align-items:center;padding-left:8px;color:white;font-size:0.8em;white-space:nowrap;min-width:fit-content;">${fmtWan(item.value)}</div></div>
-    </div>`).join('\n')
+  // ===== 资产负债趋势图（双柱对比：上期 vs 当期） =====
+  function buildTrendChartSVG(items: TrendItem[], title: string, maxWidth: number): string {
+    if (items.length === 0) return `<p style="text-align:center;color:#a0aec0;padding:20px;">暂无数据</p>`
 
-  // 支出构成条形图
-  const expenseBarsHTML = assetStructure.expenseComposition.slice(0, 6).map(item => {
-    const colors = [lossColor, '#dd6b20', '#3182ce', '#805ad5', profitColor, '#718096']
-    const idx = assetStructure.expenseComposition.indexOf(item)
-    const color = colors[idx % colors.length]
+    const maxVal = Math.max(...items.map(i => Math.max(i.prevValue, i.currValue)), 1)
+    const barH = 22
+    const barGap = 4
+    const itemGap = 14
+    const labelW = 110
+    const arrowW = 70
+    const svgW = maxWidth
+    const midPadding = 6
+    const barAreaW = svgW - labelW - arrowW - 16
+    const svgH = 28 + items.length * (barH * 2 + barGap + itemGap) + 16
+
+    function barColor(isPrev: boolean, isPositive: boolean): string {
+      if (isPrev) return isPositive ? 'rgba(16,185,129,0.35)' : 'rgba(239,68,68,0.35)'
+      return isPositive ? profitColor : lossColor
+    }
+
+    let rowsHTML = ''
+    let y = 28
+    items.forEach(item => {
+      const prevW = maxVal > 0 ? (item.prevValue / maxVal) * barAreaW : 0
+      const currW = maxVal > 0 ? (item.currValue / maxVal) * barAreaW : 0
+      const prevPositive = item.prevValue >= 0
+      const currPositive = item.currValue >= 0
+      const changeArrow = item.changePct > 0 ? '▲' : item.changePct < 0 ? '▼' : '─'
+      const changeColor = item.changePct > 0 ? profitColor : item.changePct < 0 ? lossColor : '#a0aec0'
+
+      rowsHTML += `
+        <text x="0" y="${y + 12}" font-size="12" fill="#4a5568" font-weight="500">${item.icon} ${item.name}</text>
+        <rect x="${labelW}" y="${y}" width="${Math.max(prevW, 1)}" height="${barH}" rx="3" fill="${barColor(true, prevPositive)}" />
+        <text x="${labelW + Math.max(prevW, 1) + 4}" y="${y + 15}" font-size="11" fill="#a0aec0">${fmtWan(item.prevValue)}</text>
+        <rect x="${labelW}" y="${y + barH + barGap}" width="${Math.max(currW, 1)}" height="${barH}" rx="3" fill="${barColor(false, currPositive)}" />
+        <text x="${labelW + Math.max(currW, 1) + 4}" y="${y + barH + barGap + 15}" font-size="11" fill="#4a5568" font-weight="600">${fmtWan(item.currValue)}</text>
+        <text x="${svgW - arrowW}" y="${y + barH + 6}" font-size="13" fill="${changeColor}" font-weight="700" text-anchor="start">${changeArrow} ${Math.abs(item.changePct).toFixed(1)}%</text>
+      `
+      y += barH * 2 + barGap + itemGap
+    })
+
     return `
-    <div style="margin-bottom:12px;">
-      <div style="display:flex;justify-content:space-between;margin-bottom:4px;"><span>${item.name}</span><span style="font-weight:600;">${fmtPct(item.percentage)} | ¥${fmtAmount(item.value)}</span></div>
-      <div style="height:20px;background:#edf2f7;border-radius:4px;overflow:hidden;"><div style="width:${Math.max(item.percentage, 3)}%;height:100%;background:${color};border-radius:4px;"></div></div>
-    </div>`
-  }).join('\n')
+      <div style="margin-bottom:20px;">
+        <h3 style="margin-bottom:14px;color:var(--primary);font-size:1.05em;">${title}</h3>
+        <svg viewBox="0 0 ${svgW} ${svgH}" width="100%" style="max-width:${svgW}px;font-family:inherit;">
+          <text x="${labelW + 4}" y="14" font-size="10" fill="#a0aec0">上期</text>
+          <text x="${labelW + 4}" y="26" font-size="10" fill="#a0aec0">当期</text>
+          <line x1="${labelW - 4}" y1="4" x2="${labelW - 4}" y2="${svgH - 8}" stroke="#e2e8f0" stroke-width="1" />
+          ${rowsHTML}
+        </svg>
+      </div>`
+  }
 
   return `<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>${meta.familyName} ${meta.quarterLabel}财报</title>
+    <title>${meta.familyName} ${meta.periodLabel}财报</title>
     <style>
         :root {
             --primary: #1a365d;
@@ -253,9 +362,9 @@ export function renderReportHTML(data: QuarterlyReportData, colorMode: 'cn' | 'w
 <body>
 
 <div class="report-header">
-    <h1>🏠 ${meta.familyName} ${meta.quarterLabel}财报</h1>
+    <h1>🏠 ${meta.familyName} ${meta.periodLabel}财报</h1>
     <div class="subtitle">Family Financial Report</div>
-    <div class="period">📅 报告期：${meta.quarterLabel} (${meta.dateRange})</div>
+    <div class="period">📅 报告期：${meta.periodLabel} (${meta.dateRange})</div>
 </div>
 
 <div class="container">
@@ -270,21 +379,21 @@ export function renderReportHTML(data: QuarterlyReportData, colorMode: 'cn' | 'w
         <div class="summary-card">
             <div class="label">总资产</div>
             <div class="value">${fmtWan(summary.totalAssets)}</div>
-            <div class="change ${summary.totalAssetsChange >= 0 ? 'up' : 'down'}">${fmtChange(summary.totalAssetsChange)}</div>
+            <div class="change ${summary.totalAssetsChange >= 0 ? 'up' : 'down'}">${fmtChange(summary.totalAssetsChange, meta.comparisonLabel)}</div>
         </div>
         <div class="summary-card red">
             <div class="label">总负债</div>
             <div class="value">${fmtWan(summary.totalLiabilities)}</div>
-            <div class="change ${summary.totalLiabilitiesChange <= 0 ? 'up' : 'down'}">${fmtChange(summary.totalLiabilitiesChange)}</div>
+            <div class="change ${summary.totalLiabilitiesChange <= 0 ? 'up' : 'down'}">${fmtChange(summary.totalLiabilitiesChange, meta.comparisonLabel)}</div>
         </div>
         <div class="summary-card green">
             <div class="label">净资产</div>
             <div class="value">${fmtWan(summary.netWorth)}</div>
-            <div class="change ${summary.netWorthChange >= 0 ? 'up' : 'down'}">${fmtChange(summary.netWorthChange)}</div>
+            <div class="change ${summary.netWorthChange >= 0 ? 'up' : 'down'}">${fmtChange(summary.netWorthChange, meta.comparisonLabel)}</div>
         </div>
         <div class="summary-card orange">
-            <div class="label">本季净结余</div>
-            <div class="value">${fmtWan(summary.quarterlyNetSavings)}</div>
+            <div class="label">本期净结余</div>
+            <div class="value">${fmtWan(summary.periodNetSavings)}</div>
             <div class="change up">储蓄率 ${fmtPct(summary.savingsRate)}</div>
         </div>
     </div>
@@ -308,9 +417,8 @@ export function renderReportHTML(data: QuarterlyReportData, colorMode: 'cn' | 'w
                     ${investRowsHTML}
                     <tr class="subtotal-row"><td>投资性资产小计</td><td class="amount">${fmtAmount(balanceSheet.assets.investmentTotal)}</td><td class="pct">${fmtPct(balanceSheet.assets.investmentTotal / balanceSheet.assets.grandTotal * 100)}</td><td></td></tr>
 
-                    <tr class="category-row"><td colspan="4">🏠 三、固定资产（实物资产）</td></tr>
-                    ${fixedRowsHTML}
-                    <tr class="subtotal-row"><td>固定资产小计</td><td class="amount">${fmtAmount(balanceSheet.assets.fixedTotal)}</td><td class="pct">${fmtPct(balanceSheet.assets.fixedTotal / balanceSheet.assets.grandTotal * 100)}</td><td></td></tr>
+                    <tr class="category-row"><td colspan="4">📦 三、实物资产</td></tr>
+                    <tr class="subtotal-row"><td>实物资产当前总价值</td><td class="amount">${fmtAmount(balanceSheet.assets.fixedTotal)}</td><td class="pct">${fmtPct(balanceSheet.assets.fixedTotal / balanceSheet.assets.grandTotal * 100)}</td><td></td></tr>
 
                     <tr class="total-row"><td>🏦 资产总计</td><td class="amount">${fmtAmount(balanceSheet.assets.grandTotal)}</td><td class="pct">100%</td><td></td></tr>
                 </tbody>
@@ -378,7 +486,7 @@ export function renderReportHTML(data: QuarterlyReportData, colorMode: 'cn' | 'w
             <table class="fin-table">
                 <tbody>
                     <tr class="total-row" style="background: linear-gradient(135deg, ${profitColor}, ${profitColorDark});">
-                        <td style="font-size:1.1em;">✨ 本季度净结余（收入 - 支出）</td>
+                        <td style="font-size:1.1em;">✨ 本期净结余（收入 - 支出）</td>
                         <td class="amount" style="font-size:1.3em;">${fmtWan(incomeStatement.income.total - incomeStatement.expense.total)}</td>
                         <td class="pct" style="font-size:1em;">储蓄率 ${fmtPct(incomeStatement.savingsRate)}</td>
                         <td></td>
@@ -388,36 +496,15 @@ export function renderReportHTML(data: QuarterlyReportData, colorMode: 'cn' | 'w
         </div>
     </div>
 
-    <!-- 现金流量表 -->
+    <!-- 资金流量图 -->
     <div class="section">
         <div class="section-header">
             <span class="icon">🔄</span>
-            <h2>三、现金流量表 (Cash Flow Statement)</h2>
-            <span class="desc">${meta.quarterLabel} 季度汇总</span>
+            <h2>三、资金流量图 (Cash Flow Chart)</h2>
+            <span class="desc">${meta.periodLabel} 收入支出流向对比</span>
         </div>
         <div class="section-body">
-            <table class="fin-table">
-                <thead><tr><th>现金流项目</th><th class="amount">金额 (¥)</th><th style="width:30%">说明</th></tr></thead>
-                <tbody>
-                    <tr class="category-row"><td colspan="3">🟢 一、经营性现金流（日常收支）</td></tr>
-                    ${cfOperatingHTML}
-                    <tr class="subtotal-row"><td>经营性净现金流</td><td class="amount ${cashFlow.operatingTotal >= 0 ? 'positive' : 'negative'}">${cashFlow.operatingTotal >= 0 ? '+' : ''}${fmtAmount(cashFlow.operatingTotal)}</td><td class="note">${cashFlow.operatingTotal >= 0 ? '✅ 正向' : '⚠️ 负向'}</td></tr>
-
-                    <tr class="category-row"><td colspan="3">🔵 二、投资性现金流</td></tr>
-                    ${cfInvestingHTML}
-                    <tr class="subtotal-row"><td>投资性净现金流</td><td class="amount ${cashFlow.investingTotal >= 0 ? 'positive' : 'negative'}">${cashFlow.investingTotal >= 0 ? '+' : ''}${fmtAmount(cashFlow.investingTotal)}</td><td class="note">${cashFlow.investingTotal >= 0 ? '✅ 正向' : '持续积累投资'}</td></tr>
-
-                    <tr class="category-row"><td colspan="3">🔴 三、融资性现金流（还贷）</td></tr>
-                    ${cfFinancingHTML}
-                    <tr class="subtotal-row"><td>融资性净现金流</td><td class="amount ${cashFlow.financingTotal >= 0 ? 'positive' : 'negative'}">${cashFlow.financingTotal >= 0 ? '+' : ''}${fmtAmount(cashFlow.financingTotal)}</td><td class="note">${cashFlow.financingTotal >= 0 ? '新增融资' : '持续降负债'}</td></tr>
-
-                    <tr class="total-row" style="background: linear-gradient(135deg, #2c5282, #2b6cb0);">
-                        <td>💰 本季度现金净变动</td>
-                        <td class="amount" style="font-size:1.2em;">${cashFlow.netCashFlow >= 0 ? '+' : ''}${fmtAmount(cashFlow.netCashFlow)}</td>
-                        <td class="note" style="color:rgba(255,255,255,0.8);">季度现金变动合计</td>
-                    </tr>
-                </tbody>
-            </table>
+            ${cashFlowChartSVG}
         </div>
     </div>
 
@@ -435,29 +522,44 @@ export function renderReportHTML(data: QuarterlyReportData, colorMode: 'cn' | 'w
         </div>
     </div>
 
-    <!-- 资产结构分析 -->
+    <!-- 资产负债趋势 -->
     <div class="section">
         <div class="section-header">
-            <span class="icon">🍩</span>
-            <h2>五、资产结构分析</h2>
-            <span class="desc">资产配置可视化</span>
+            <span class="icon">📈</span>
+            <h2>五、资产负债趋势</h2>
+            <span class="desc">${meta.comparisonLabel} 各账户余额变动对比</span>
         </div>
         <div class="section-body">
             <div class="two-col">
                 <div>
-                    <h3 style="margin-bottom:16px;color:var(--primary);">资产构成</h3>
-                    ${assetBarsHTML}
+                    ${buildTrendChartSVG(assetTrend, '📊 资产账户趋势', 440)}
                 </div>
                 <div>
-                    <h3 style="margin-bottom:16px;color:var(--primary);">支出构成</h3>
-                    ${expenseBarsHTML}
+                    ${buildTrendChartSVG(liabilityTrend, '📉 负债账户趋势', 440)}
+                </div>
+            </div>
+            <!-- 净资产对比 -->
+            <div style="margin-top:8px;">
+                ${buildTrendChartSVG([netWorthTrendItem], '✨ 净资产', 900)}
+            </div>
+            <!-- 资产构成概览（保留饼图数据引用） -->
+            <div style="margin-top:20px;">
+                <h3 style="margin-bottom:12px;color:var(--primary);font-size:1.05em;">🍩 资产构成概览</h3>
+                <div style="display:flex;flex-wrap:wrap;gap:16px;">
+                    ${assetStructure.assetComposition.map(item => `
+                    <div style="flex:1;min-width:150px;background:#f7fafc;border-radius:8px;padding:12px 16px;text-align:center;">
+                        <div style="font-size:0.85em;color:#718096;">${item.name}</div>
+                        <div style="font-size:1.1em;font-weight:700;color:#2d3748;">${fmtWan(item.value)}</div>
+                        <div style="font-size:0.8em;color:#a0aec0;">${fmtPct(item.percentage)}</div>
+                    </div>
+                    `).join('')}
                 </div>
             </div>
         </div>
     </div>
 
     <div class="report-footer">
-        <p>📄 ${meta.familyName} ${meta.quarterLabel}财报 </p>
+        <p>📄 ${meta.familyName} ${meta.periodLabel}财报 </p>
         <p>编制人：${meta.preparer} | 审核人：${meta.reviewer} | 编制日期：${meta.generatedAt.slice(0, 10)}</p>
         <p style="margin-top:8px;font-size:0.8em;color:#a0aec0;">本报告仅供家庭内部财务决策参考，所有数据为家庭实际财务数据的汇总。</p>
     </div>

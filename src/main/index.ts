@@ -92,8 +92,10 @@ function registerIpcHandlers() {
   // Net Worth Snapshots
   ipcMain.handle(IPC_CHANNELS.GET_NET_WORTH_SNAPSHOTS, () => ops.getAllNetWorthSnapshots())
 
-  // Quarterly Report
-  ipcMain.handle(IPC_CHANNELS.GENERATE_REPORT, (_event, year, quarter) => ops.generateQuarterlyReport(year, quarter))
+  // 财务报告（月报/季报/年报）
+  ipcMain.handle(IPC_CHANNELS.GENERATE_REPORT, (_event, period: string, year: number, periodValue: number) =>
+    ops.generateReport(period as 'monthly' | 'quarterly' | 'yearly', year, periodValue)
+  )
 
   // Export Report PDF - 接收渲染好的 HTML 字符串和可选的默认文件名
   ipcMain.handle(IPC_CHANNELS.EXPORT_REPORT_PDF, async (_event, html: string, defaultName?: string) => {

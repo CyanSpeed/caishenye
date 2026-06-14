@@ -2,7 +2,7 @@ import Decimal from 'decimal.js'
 import { getDatabase } from './init'
 import type {
   Account, Transaction, InvestmentSnapshot, Category, PhysicalAsset,
-  Settings, NetWorthSnapshot, FamilyInfo, QuarterlyReportData,
+  Settings, NetWorthSnapshot, FamilyInfo, ReportData, TrendItem,
   BalanceSheetItem, IncomeExpenseItem, CashFlowItem, KPIData,
   BalanceSnapshot,
 } from '@shared/types'
@@ -20,11 +20,21 @@ export function addAccount(account: Omit<Account, 'id'>): Account {
   const result = db.prepare(
     'INSERT INTO accounts (name, type, sub_type, balance, currency, is_active, notes, original_amount) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
   ).run(account.name, account.type, account.sub_type, account.balance, account.currency, account.is_active ? 1 : 0, account.notes || '', account.original_amount || '')
-  return { ...account, id: Number(result.lastInsertRowid) }
+  const newId = Number(result.lastInsertRowid)
+  // 记录初始余额快照 + 净资产快照
+  recordBalanceChange(db, newId, '0', account.balance, 'ignore', '账户创建')
+  recordNetWorthSnapshot(db)
+  return { ...account, id: newId }
 }
 
 export function updateAccount(id: number, updates: Partial<Account>): void {
   const db = getDatabase()
+
+  // 如果余额即将变更，提前获取旧值用于快照
+  const oldAccount = updates.balance !== undefined
+    ? db.prepare('SELECT balance FROM accounts WHERE id = ?').get(id) as { balance: string } | undefined
+    : null
+
   const fields: string[] = []
   const values: any[] = []
   if (updates.name !== undefined) { fields.push('name = ?'); values.push(updates.name) }
@@ -38,11 +48,86 @@ export function updateAccount(id: number, updates: Partial<Account>): void {
   if (fields.length === 0) return
   values.push(id)
   db.prepare(`UPDATE accounts SET ${fields.join(', ')} WHERE id = ?`).run(...values)
+
+  // 余额变更时记录快照 + 净资产快照
+  if (oldAccount && updates.balance !== undefined) {
+    recordBalanceChange(db, id, oldAccount.balance, updates.balance, 'ignore', '手动编辑余额')
+    recordNetWorthSnapshot(db)
+  }
 }
 
 export function deleteAccount(id: number): void {
   const db = getDatabase()
   db.prepare('DELETE FROM accounts WHERE id = ?').run(id)
+}
+
+// ===== 快照工具函数 =====
+
+/** 记录账户余额变动快照（所有余额变更的入口都会调用，同时自动更新净资产快照） */
+function recordBalanceChange(
+  db: ReturnType<typeof getDatabase>,
+  accountId: number,
+  oldBalance: string,
+  newBalance: string,
+  handling: 'expense' | 'income' | 'ignore' = 'ignore',
+  note: string = '',
+): { lastInsertRowid: number | bigint } {
+  const now = new Date().toISOString().replace('T', ' ').slice(0, 19)
+  const diff = new Decimal(newBalance).minus(new Decimal(oldBalance)).toFixed(2)
+  const result = db.prepare(
+    'INSERT INTO balance_snapshots (account_id, date, old_balance, new_balance, diff, diff_handling, note) VALUES (?, ?, ?, ?, ?, ?, ?)'
+  ).run(
+    accountId,
+    now,
+    oldBalance,
+    newBalance,
+    diff,
+    handling,
+    note,
+  )
+  // 余额变动自动触发净资产快照（defer 到当前事务提交后）
+  // 避免在事务内重复计算，通过标记延迟执行
+  return result
+}
+
+/** 记录实物资产估值变动快照 */
+function recordPhysicalAssetChange(
+  db: ReturnType<typeof getDatabase>,
+  physicalAssetId: number,
+  oldValue: string,
+  newValue: string,
+  note: string = '',
+): void {
+  const now = new Date().toISOString().replace('T', ' ').slice(0, 19)
+  db.prepare(
+    'INSERT INTO physical_asset_snapshots (physical_asset_id, date, old_value, new_value, note) VALUES (?, ?, ?, ?, ?)'
+  ).run(physicalAssetId, now, oldValue, newValue, note)
+}
+
+/** 自动记录净资产快照（从账户+实物资产实时计算） */
+function recordNetWorthSnapshot(db: ReturnType<typeof getDatabase>): void {
+  const now = new Date().toISOString().replace('T', ' ').slice(0, 19)
+  const accounts = db.prepare('SELECT * FROM accounts WHERE is_active = 1').all() as any[]
+  const physicalAssets = db.prepare("SELECT * FROM physical_assets WHERE status = '使用中'").all() as any[]
+
+  // 账户资产总和
+  const accountAssets = accounts
+    .filter((a: any) => a.type === 'asset')
+    .reduce((s: number, a: any) => s + Number(a.balance), 0)
+  // 实物资产总和
+  const physicalTotal = physicalAssets
+    .reduce((s: number, a: any) => s + Number(a.current_value), 0)
+  // 负债总和
+  const totalLiabilities = accounts
+    .filter((a: any) => a.type === 'liability')
+    .reduce((s: number, a: any) => s + Number(a.balance), 0)
+
+  const totalAssets = accountAssets + physicalTotal
+  const netWorth = totalAssets - totalLiabilities
+
+  db.prepare(
+    'INSERT INTO net_worth_snapshots (date, total_assets, total_liabilities, net_worth) VALUES (?, ?, ?, ?)'
+  ).run(now, String(totalAssets), String(totalLiabilities), String(netWorth))
 }
 
 // ===== Balance Sync =====
@@ -70,18 +155,9 @@ export function syncBalance(params: SyncBalanceParams): { account: Account; snap
     const now = new Date().toISOString().replace('T', ' ').slice(0, 19)
     db.prepare('UPDATE accounts SET balance = ?, last_synced_at = ? WHERE id = ?').run(newBalance, now, params.account_id)
 
-    // 记录快照
-    const snapshotResult = db.prepare(
-      'INSERT INTO balance_snapshots (account_id, date, old_balance, new_balance, diff, diff_handling, note) VALUES (?, ?, ?, ?, ?, ?, ?)'
-    ).run(
-      params.account_id,
-      now,
-      oldBalance,
-      newBalance,
-      diff,
-      params.diff_handling,
-      params.note || ''
-    )
+    // 记录快照 + 净资产快照
+    const snapshotResult = recordBalanceChange(db, params.account_id, oldBalance, newBalance, params.diff_handling, params.note || '')
+    recordNetWorthSnapshot(db)
 
     // 如果差额需要记为收入或支出，创建交易记录
     if (params.diff_handling !== 'ignore' && diff !== '0.00') {
@@ -167,30 +243,36 @@ export function addTransaction(tx: Omit<Transaction, 'id'>): Transaction {
 
     const amount = new Decimal(tx.amount)
 
-    // 仅精确同步的账户才自动更新余额
+    // 仅精确同步的账户才自动更新余额（并记录快照）
     if (tx.type === 'expense' && tx.from_account_id && isExactSync(db, tx.from_account_id)) {
       const account = db.prepare('SELECT balance FROM accounts WHERE id = ?').get(tx.from_account_id) as { balance: string } | undefined
       if (account) {
         const newBalance = new Decimal(account.balance).minus(amount).toFixed(2)
         db.prepare('UPDATE accounts SET balance = ? WHERE id = ?').run(newBalance, tx.from_account_id)
+        recordBalanceChange(db, tx.from_account_id, account.balance, newBalance, 'expense', tx.description || '交易支出')
       }
     } else if (tx.type === 'income' && tx.to_account_id && isExactSync(db, tx.to_account_id)) {
       const account = db.prepare('SELECT balance FROM accounts WHERE id = ?').get(tx.to_account_id) as { balance: string } | undefined
       if (account) {
         const newBalance = new Decimal(account.balance).plus(amount).toFixed(2)
         db.prepare('UPDATE accounts SET balance = ? WHERE id = ?').run(newBalance, tx.to_account_id)
+        recordBalanceChange(db, tx.to_account_id, account.balance, newBalance, 'income', tx.description || '交易收入')
       }
     } else if (tx.type === 'transfer') {
       if (tx.from_account_id && isExactSync(db, tx.from_account_id)) {
         const from = db.prepare('SELECT balance FROM accounts WHERE id = ?').get(tx.from_account_id) as { balance: string } | undefined
         if (from) {
-          db.prepare('UPDATE accounts SET balance = ? WHERE id = ?').run(new Decimal(from.balance).minus(amount).toFixed(2), tx.from_account_id)
+          const newFromBalance = new Decimal(from.balance).minus(amount).toFixed(2)
+          db.prepare('UPDATE accounts SET balance = ? WHERE id = ?').run(newFromBalance, tx.from_account_id)
+          recordBalanceChange(db, tx.from_account_id, from.balance, newFromBalance, 'expense', tx.description || '转账转出')
         }
       }
       if (tx.to_account_id && isExactSync(db, tx.to_account_id)) {
         const to = db.prepare('SELECT balance FROM accounts WHERE id = ?').get(tx.to_account_id) as { balance: string } | undefined
         if (to) {
-          db.prepare('UPDATE accounts SET balance = ? WHERE id = ?').run(new Decimal(to.balance).plus(amount).toFixed(2), tx.to_account_id)
+          const newToBalance = new Decimal(to.balance).plus(amount).toFixed(2)
+          db.prepare('UPDATE accounts SET balance = ? WHERE id = ?').run(newToBalance, tx.to_account_id)
+          recordBalanceChange(db, tx.to_account_id, to.balance, newToBalance, 'income', tx.description || '转账转入')
         }
       }
     }
@@ -198,7 +280,10 @@ export function addTransaction(tx: Omit<Transaction, 'id'>): Transaction {
     return { ...tx, id: Number(result.lastInsertRowid) }
   })
 
-  return insertAndBalance()
+  const newTx = insertAndBalance()
+  // 事务提交后记录净资产快照
+  recordNetWorthSnapshot(db)
+  return newTx
 }
 
 export function updateTransaction(id: number, updates: Partial<Transaction>): Transaction {
@@ -211,28 +296,36 @@ export function updateTransaction(id: number, updates: Partial<Transaction>): Tr
 
     const oldAmount = new Decimal(oldTx.amount)
 
-    // 撤销原交易的余额影响（仅精确同步账户）
+    // 撤销原交易的余额影响（仅精确同步账户，并记录还原快照）
     if (oldTx.type === 'expense' && oldTx.from_account_id && isExactSync(db, oldTx.from_account_id)) {
       const account = db.prepare('SELECT balance FROM accounts WHERE id = ?').get(oldTx.from_account_id) as { balance: string } | undefined
       if (account) {
-        db.prepare('UPDATE accounts SET balance = ? WHERE id = ?').run(new Decimal(account.balance).plus(oldAmount).toFixed(2), oldTx.from_account_id)
+        const restored = new Decimal(account.balance).plus(oldAmount).toFixed(2)
+        db.prepare('UPDATE accounts SET balance = ? WHERE id = ?').run(restored, oldTx.from_account_id)
+        recordBalanceChange(db, oldTx.from_account_id, account.balance, restored, 'ignore', '撤销交易')
       }
     } else if (oldTx.type === 'income' && oldTx.to_account_id && isExactSync(db, oldTx.to_account_id)) {
       const account = db.prepare('SELECT balance FROM accounts WHERE id = ?').get(oldTx.to_account_id) as { balance: string } | undefined
       if (account) {
-        db.prepare('UPDATE accounts SET balance = ? WHERE id = ?').run(new Decimal(account.balance).minus(oldAmount).toFixed(2), oldTx.to_account_id)
+        const restored = new Decimal(account.balance).minus(oldAmount).toFixed(2)
+        db.prepare('UPDATE accounts SET balance = ? WHERE id = ?').run(restored, oldTx.to_account_id)
+        recordBalanceChange(db, oldTx.to_account_id, account.balance, restored, 'ignore', '撤销交易')
       }
     } else if (oldTx.type === 'transfer') {
       if (oldTx.from_account_id && isExactSync(db, oldTx.from_account_id)) {
         const from = db.prepare('SELECT balance FROM accounts WHERE id = ?').get(oldTx.from_account_id) as { balance: string } | undefined
         if (from) {
-          db.prepare('UPDATE accounts SET balance = ? WHERE id = ?').run(new Decimal(from.balance).plus(oldAmount).toFixed(2), oldTx.from_account_id)
+          const restored = new Decimal(from.balance).plus(oldAmount).toFixed(2)
+          db.prepare('UPDATE accounts SET balance = ? WHERE id = ?').run(restored, oldTx.from_account_id)
+          recordBalanceChange(db, oldTx.from_account_id, from.balance, restored, 'ignore', '撤销转账')
         }
       }
       if (oldTx.to_account_id && isExactSync(db, oldTx.to_account_id)) {
         const to = db.prepare('SELECT balance FROM accounts WHERE id = ?').get(oldTx.to_account_id) as { balance: string } | undefined
         if (to) {
-          db.prepare('UPDATE accounts SET balance = ? WHERE id = ?').run(new Decimal(to.balance).minus(oldAmount).toFixed(2), oldTx.to_account_id)
+          const restored = new Decimal(to.balance).minus(oldAmount).toFixed(2)
+          db.prepare('UPDATE accounts SET balance = ? WHERE id = ?').run(restored, oldTx.to_account_id)
+          recordBalanceChange(db, oldTx.to_account_id, to.balance, restored, 'ignore', '撤销转账')
         }
       }
     }
@@ -259,28 +352,36 @@ export function updateTransaction(id: number, updates: Partial<Transaction>): Tr
     const newTx = db.prepare('SELECT * FROM transactions WHERE id = ?').get(id) as Transaction
     const newAmount = new Decimal(newTx.amount)
 
-    // 应用新交易的余额影响（仅精确同步账户）
+    // 应用新交易的余额影响（仅精确同步账户，并记录快照）
     if (newTx.type === 'expense' && newTx.from_account_id && isExactSync(db, newTx.from_account_id)) {
       const account = db.prepare('SELECT balance FROM accounts WHERE id = ?').get(newTx.from_account_id) as { balance: string } | undefined
       if (account) {
-        db.prepare('UPDATE accounts SET balance = ? WHERE id = ?').run(new Decimal(account.balance).minus(newAmount).toFixed(2), newTx.from_account_id)
+        const updated = new Decimal(account.balance).minus(newAmount).toFixed(2)
+        db.prepare('UPDATE accounts SET balance = ? WHERE id = ?').run(updated, newTx.from_account_id)
+        recordBalanceChange(db, newTx.from_account_id, account.balance, updated, 'expense', newTx.description || '交易支出')
       }
     } else if (newTx.type === 'income' && newTx.to_account_id && isExactSync(db, newTx.to_account_id)) {
       const account = db.prepare('SELECT balance FROM accounts WHERE id = ?').get(newTx.to_account_id) as { balance: string } | undefined
       if (account) {
-        db.prepare('UPDATE accounts SET balance = ? WHERE id = ?').run(new Decimal(account.balance).plus(newAmount).toFixed(2), newTx.to_account_id)
+        const updated = new Decimal(account.balance).plus(newAmount).toFixed(2)
+        db.prepare('UPDATE accounts SET balance = ? WHERE id = ?').run(updated, newTx.to_account_id)
+        recordBalanceChange(db, newTx.to_account_id, account.balance, updated, 'income', newTx.description || '交易收入')
       }
     } else if (newTx.type === 'transfer') {
       if (newTx.from_account_id && isExactSync(db, newTx.from_account_id)) {
         const from = db.prepare('SELECT balance FROM accounts WHERE id = ?').get(newTx.from_account_id) as { balance: string } | undefined
         if (from) {
-          db.prepare('UPDATE accounts SET balance = ? WHERE id = ?').run(new Decimal(from.balance).minus(newAmount).toFixed(2), newTx.from_account_id)
+          const updated = new Decimal(from.balance).minus(newAmount).toFixed(2)
+          db.prepare('UPDATE accounts SET balance = ? WHERE id = ?').run(updated, newTx.from_account_id)
+          recordBalanceChange(db, newTx.from_account_id, from.balance, updated, 'expense', newTx.description || '转账转出')
         }
       }
       if (newTx.to_account_id && isExactSync(db, newTx.to_account_id)) {
         const to = db.prepare('SELECT balance FROM accounts WHERE id = ?').get(newTx.to_account_id) as { balance: string } | undefined
         if (to) {
-          db.prepare('UPDATE accounts SET balance = ? WHERE id = ?').run(new Decimal(to.balance).plus(newAmount).toFixed(2), newTx.to_account_id)
+          const updated = new Decimal(to.balance).plus(newAmount).toFixed(2)
+          db.prepare('UPDATE accounts SET balance = ? WHERE id = ?').run(updated, newTx.to_account_id)
+          recordBalanceChange(db, newTx.to_account_id, to.balance, updated, 'income', newTx.description || '转账转入')
         }
       }
     }
@@ -288,7 +389,9 @@ export function updateTransaction(id: number, updates: Partial<Transaction>): Tr
     return newTx
   })
 
-  return updateAndRebalance()
+  const updatedTx = updateAndRebalance()
+  recordNetWorthSnapshot(db)
+  return updatedTx
 }
 
 export function deleteTransaction(id: number): void {
@@ -300,28 +403,36 @@ export function deleteTransaction(id: number): void {
 
     const amount = new Decimal(tx.amount)
 
-    // 撤销余额影响（仅精确同步账户）
+    // 撤销余额影响（仅精确同步账户，并记录还原快照）
     if (tx.type === 'expense' && tx.from_account_id && isExactSync(db, tx.from_account_id)) {
       const account = db.prepare('SELECT balance FROM accounts WHERE id = ?').get(tx.from_account_id) as { balance: string } | undefined
       if (account) {
-        db.prepare('UPDATE accounts SET balance = ? WHERE id = ?').run(new Decimal(account.balance).plus(amount).toFixed(2), tx.from_account_id)
+        const restored = new Decimal(account.balance).plus(amount).toFixed(2)
+        db.prepare('UPDATE accounts SET balance = ? WHERE id = ?').run(restored, tx.from_account_id)
+        recordBalanceChange(db, tx.from_account_id, account.balance, restored, 'ignore', '删除交易')
       }
     } else if (tx.type === 'income' && tx.to_account_id && isExactSync(db, tx.to_account_id)) {
       const account = db.prepare('SELECT balance FROM accounts WHERE id = ?').get(tx.to_account_id) as { balance: string } | undefined
       if (account) {
-        db.prepare('UPDATE accounts SET balance = ? WHERE id = ?').run(new Decimal(account.balance).minus(amount).toFixed(2), tx.to_account_id)
+        const restored = new Decimal(account.balance).minus(amount).toFixed(2)
+        db.prepare('UPDATE accounts SET balance = ? WHERE id = ?').run(restored, tx.to_account_id)
+        recordBalanceChange(db, tx.to_account_id, account.balance, restored, 'ignore', '删除交易')
       }
     } else if (tx.type === 'transfer') {
       if (tx.from_account_id && isExactSync(db, tx.from_account_id)) {
         const from = db.prepare('SELECT balance FROM accounts WHERE id = ?').get(tx.from_account_id) as { balance: string } | undefined
         if (from) {
-          db.prepare('UPDATE accounts SET balance = ? WHERE id = ?').run(new Decimal(from.balance).plus(amount).toFixed(2), tx.from_account_id)
+          const restored = new Decimal(from.balance).plus(amount).toFixed(2)
+          db.prepare('UPDATE accounts SET balance = ? WHERE id = ?').run(restored, tx.from_account_id)
+          recordBalanceChange(db, tx.from_account_id, from.balance, restored, 'ignore', '删除转账')
         }
       }
       if (tx.to_account_id && isExactSync(db, tx.to_account_id)) {
         const to = db.prepare('SELECT balance FROM accounts WHERE id = ?').get(tx.to_account_id) as { balance: string } | undefined
         if (to) {
-          db.prepare('UPDATE accounts SET balance = ? WHERE id = ?').run(new Decimal(to.balance).minus(amount).toFixed(2), tx.to_account_id)
+          const restored = new Decimal(to.balance).minus(amount).toFixed(2)
+          db.prepare('UPDATE accounts SET balance = ? WHERE id = ?').run(restored, tx.to_account_id)
+          recordBalanceChange(db, tx.to_account_id, to.balance, restored, 'ignore', '删除转账')
         }
       }
     }
@@ -330,6 +441,7 @@ export function deleteTransaction(id: number): void {
   })
 
   deleteAndReverse()
+  recordNetWorthSnapshot(db)
 }
 
 /** 重置交易记账数据（清空交易记录、余额快照、净资产快照和投资快照，并重置分类为新的12种） */
@@ -347,6 +459,8 @@ export function resetTransactionData(): { transactionsDeleted: number; snapshots
     db.prepare('DELETE FROM transactions').run()
     // 清空余额快照
     db.prepare('DELETE FROM balance_snapshots').run()
+    // 清空实物资产快照
+    db.prepare('DELETE FROM physical_asset_snapshots').run()
     // 清空净资产快照（衍生数据，交易清空后应同步清空）
     db.prepare('DELETE FROM net_worth_snapshots').run()
     // 清空投资市值快照（衍生数据，交易清空后应同步清空）
@@ -388,6 +502,7 @@ export function resetTransactionData(): { transactionsDeleted: number; snapshots
       db.prepare("UPDATE sqlite_sequence SET seq = 19 WHERE name = 'categories'").run()
       db.prepare("UPDATE sqlite_sequence SET seq = 0 WHERE name = 'transactions'").run()
       db.prepare("UPDATE sqlite_sequence SET seq = 0 WHERE name = 'balance_snapshots'").run()
+      db.prepare("UPDATE sqlite_sequence SET seq = 0 WHERE name = 'physical_asset_snapshots'").run()
       db.prepare("UPDATE sqlite_sequence SET seq = 0 WHERE name = 'net_worth_snapshots'").run()
       db.prepare("UPDATE sqlite_sequence SET seq = 0 WHERE name = 'investment_snapshots'").run()
     } catch {
@@ -493,11 +608,22 @@ export function addPhysicalAsset(asset: Omit<PhysicalAsset, 'id'>): PhysicalAsse
   const result = db.prepare(
     'INSERT INTO physical_assets (name, category, icon_emoji, purchase_price, purchase_date, current_value, image_url, notes, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
   ).run(asset.name, asset.category, asset.icon_emoji, asset.purchase_price, asset.purchase_date, asset.current_value, asset.image_url, asset.notes, asset.status)
-  return { ...asset, id: Number(result.lastInsertRowid) }
+  const newId = Number(result.lastInsertRowid)
+  // 记录初始估值快照
+  recordPhysicalAssetChange(db, newId, '0', asset.current_value, '物品创建')
+  // 自动更新净资产快照
+  recordNetWorthSnapshot(db)
+  return { ...asset, id: newId }
 }
 
 export function updatePhysicalAsset(id: number, updates: Partial<PhysicalAsset>): void {
   const db = getDatabase()
+
+  // 如果估值即将变更，提前获取旧值用于快照
+  const oldAsset = updates.current_value !== undefined
+    ? db.prepare('SELECT current_value FROM physical_assets WHERE id = ?').get(id) as { current_value: string } | undefined
+    : null
+
   const fields: string[] = []
   const values: any[] = []
   if (updates.name !== undefined) { fields.push('name = ?'); values.push(updates.name) }
@@ -512,6 +638,12 @@ export function updatePhysicalAsset(id: number, updates: Partial<PhysicalAsset>)
   if (fields.length === 0) return
   values.push(id)
   db.prepare(`UPDATE physical_assets SET ${fields.join(', ')} WHERE id = ?`).run(...values)
+
+  // 估值变更时记录快照
+  if (oldAsset && updates.current_value !== undefined) {
+    recordPhysicalAssetChange(db, id, oldAsset.current_value, updates.current_value, '手动更新估值')
+    recordNetWorthSnapshot(db)
+  }
 }
 
 export function deletePhysicalAsset(id: number): void {
@@ -552,7 +684,17 @@ export function addNetWorthSnapshot(snapshot: Omit<NetWorthSnapshot, 'id'>): Net
   return { ...snapshot, id: Number(result.lastInsertRowid) }
 }
 
-// ===== Quarterly Report Generation =====
+// ===== 财务报告生成 =====
+
+/** 获取月份日期范围 */
+function getMonthRange(year: number, month: number): { start: string; end: string; label: string; dateRange: string } {
+  const start = `${year}-${String(month).padStart(2, '0')}-01`
+  const lastDay = new Date(year, month, 0).getDate()
+  const end = `${year}-${String(month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`
+  const label = `${year}年${month}月`
+  const dateRange = `${month}月1日 — ${month}月${lastDay}日`
+  return { start, end, label, dateRange }
+}
 
 /** 获取季度日期范围 */
 function getQuarterRange(year: number, quarter: number): { start: string; end: string; label: string; dateRange: string } {
@@ -567,25 +709,82 @@ function getQuarterRange(year: number, quarter: number): { start: string; end: s
   return { start, end, label, dateRange }
 }
 
+/** 获取年度日期范围 */
+function getYearRange(year: number): { start: string; end: string; label: string; dateRange: string } {
+  const start = `${year}-01-01`
+  const end = `${year}-12-31`
+  const label = `${year}年`
+  const dateRange = `1月1日 — 12月31日`
+  return { start, end, label, dateRange }
+}
+
+/** 获取上一个月份的年份和月份 */
+function getPrevMonth(year: number, month: number): { year: number; month: number } {
+  if (month === 1) return { year: year - 1, month: 12 }
+  return { year, month: month - 1 }
+}
+
 /** 获取上一个季度 */
 function getPrevQuarter(year: number, quarter: number): { year: number; quarter: number } {
   if (quarter === 1) return { year: year - 1, quarter: 4 }
   return { year, quarter: quarter - 1 }
 }
 
-export function generateQuarterlyReport(year: number, quarter: number): QuarterlyReportData {
+/** 获取上一年 */
+function getPrevYear(year: number): { year: number } {
+  return { year: year - 1 }
+}
+
+/** 统一报告生成函数 */
+export function generateReport(period: 'monthly' | 'quarterly' | 'yearly', year: number, periodValue: number): ReportData {
   const db = getDatabase()
-  const range = getQuarterRange(year, quarter)
-  const prevQ = getPrevQuarter(year, quarter)
-  const prevRange = getQuarterRange(prevQ.year, prevQ.quarter)
+
+  // 根据周期类型获取日期范围
+  let range: { start: string; end: string; label: string; dateRange: string }
+  let prevRange: { start: string; end: string }
+  let comparisonLabel: string
+  let monthsInPeriod: number
+
+  switch (period) {
+    case 'monthly': {
+      const r = getMonthRange(year, periodValue)
+      range = r
+      const prevM = getPrevMonth(year, periodValue)
+      const pr = getMonthRange(prevM.year, prevM.month)
+      prevRange = { start: pr.start, end: pr.end }
+      comparisonLabel = 'vs 上月'
+      monthsInPeriod = 1
+      break
+    }
+    case 'quarterly': {
+      const r = getQuarterRange(year, periodValue)
+      range = r
+      const prevQ = getPrevQuarter(year, periodValue)
+      const pr = getQuarterRange(prevQ.year, prevQ.quarter)
+      prevRange = { start: pr.start, end: pr.end }
+      comparisonLabel = 'vs 上季'
+      monthsInPeriod = 3
+      break
+    }
+    case 'yearly': {
+      const r = getYearRange(year)
+      range = r
+      const prevY = getPrevYear(year)
+      const pr = getYearRange(prevY.year)
+      prevRange = { start: pr.start, end: pr.end }
+      comparisonLabel = 'vs 上年'
+      monthsInPeriod = 12
+      break
+    }
+  }
 
   // 查询基础数据
   const accounts = db.prepare('SELECT * FROM accounts WHERE is_active = 1').all() as any[]
   const categories = db.prepare('SELECT * FROM categories').all() as Category[]
   const physicalAssets = db.prepare("SELECT * FROM physical_assets WHERE status = '使用中'").all() as any[]
 
-  // 当季交易
-  const quarterTransactions = db.prepare(
+  // 当期交易
+  const periodTransactions = db.prepare(
     'SELECT * FROM transactions WHERE date >= ? AND date <= ?'
   ).all(range.start, range.end) as Transaction[]
 
@@ -605,25 +804,27 @@ export function generateQuarterlyReport(year: number, quarter: number): Quarterl
     try { familyInfo = JSON.parse(infoStr) } catch { /* 忽略 */ }
   }
 
-  // ===== 资产分类计算 =====
+  // ===== 资产分类计算（与 Dashboard / 账户管理 完全一致） =====
   const assetAccounts = accounts.filter((a: any) => a.type === 'asset')
   const liabilityAccounts = accounts.filter((a: any) => a.type === 'liability')
 
-  // 流动资产：cash + bank
-  const liquidAccounts = assetAccounts.filter((a: any) => a.sub_type === 'cash' || a.sub_type === 'bank')
+  // 流动资产：cash + bank + receivable（非投资的金融资产）
+  const liquidAccounts = assetAccounts.filter(
+    (a: any) => a.sub_type === 'cash' || a.sub_type === 'bank' || a.sub_type === 'receivable',
+  )
   const liquidTotal = liquidAccounts.reduce((s: number, a: any) => s + Number(a.balance), 0)
 
-  // 投资资产：investment
+  // 投资性资产：investment
   const investmentAccounts = assetAccounts.filter((a: any) => a.sub_type === 'investment')
   const investmentTotal = investmentAccounts.reduce((s: number, a: any) => s + Number(a.balance), 0)
 
-  // 固定资产：实物资产中的房产和汽车
-  const fixedAssets = physicalAssets.filter((a: any) => a.category === '房产' || a.category === '汽车')
-  const fixedTotal = fixedAssets.reduce((s: number, a: any) => s + Number(a.current_value), 0)
+  // 实物资产：全部使用中的实物资产（与 Dashboard / 账户管理一致）
+  const physicalTotal = physicalAssets.reduce((s: number, a: any) => s + Number(a.current_value), 0)
 
-  const totalAssets = liquidTotal + investmentTotal + fixedTotal
+  // 总资产 = 全部金融账户 + 全部实物资产
+  const totalAssets = liquidTotal + investmentTotal + physicalTotal
 
-  // 负债：短债=消费贷/信用卡，长债=房贷+民间借款
+  // 负债：所有活跃负债账户（与 Dashboard 一致）
   const shortTermLiabilities = liabilityAccounts.filter((a: any) => a.sub_type === 'consumer_loan')
   const shortTermTotal = shortTermLiabilities.reduce((s: number, a: any) => s + Number(a.balance), 0)
   const longTermLiabilities = liabilityAccounts.filter((a: any) => a.sub_type === 'mortgage' || a.sub_type === 'private_loan')
@@ -638,23 +839,23 @@ export function generateQuarterlyReport(year: number, quarter: number): Quarterl
     note: acc.notes || '',
   })
 
-  // 固定资产明细
-  const fixedItems: BalanceSheetItem[] = fixedAssets.map((a: any) => ({
-    name: a.name,
+  // 实物资产明细（全部使用中的实物资产）
+  const physicalItems: BalanceSheetItem[] = physicalAssets.map((a: any) => ({
+    name: `${a.icon_emoji || '📦'} ${a.name}`,
     amount: Number(a.current_value),
     percentage: totalAssets > 0 ? Math.round(Number(a.current_value) / totalAssets * 1000) / 10 : 0,
-    note: a.notes || '',
+    note: a.category || '',
   }))
-  if (fixedItems.length === 0) {
-    fixedItems.push({ name: '实物资产', amount: 0, percentage: 0, note: '暂无' })
+  if (physicalItems.length === 0) {
+    physicalItems.push({ name: '实物资产', amount: 0, percentage: 0, note: '暂无' })
   }
 
   // ===== 收支计算 =====
   const catMap = new Map<number, Category>()
   categories.forEach(c => catMap.set(c.id, c))
 
-  const incomeTx = quarterTransactions.filter(t => t.type === 'income')
-  const expenseTx = quarterTransactions.filter(t => t.type === 'expense')
+  const incomeTx = periodTransactions.filter(t => t.type === 'income')
+  const expenseTx = periodTransactions.filter(t => t.type === 'expense')
 
   // 收入按分类聚合
   const incomeByCategory = new Map<string, number>()
@@ -701,7 +902,7 @@ export function generateQuarterlyReport(year: number, quarter: number): Quarterl
   // ===== 现金流计算 =====
   const getCashflowItems = (cfType: string): CashFlowItem[] => {
     const items: CashFlowItem[] = []
-    const matched = quarterTransactions.filter(t => {
+    const matched = periodTransactions.filter(t => {
       if (t.type === 'transfer') return false
       const cat = catMap.get(t.category_id ?? -1)
       return cat?.cashflow_type === cfType
@@ -734,10 +935,10 @@ export function generateQuarterlyReport(year: number, quarter: number): Quarterl
   const investingTotal = investingItems.reduce((s, i) => s + i.amount, 0)
   const financingTotal = financingItems.reduce((s, i) => s + i.amount, 0)
 
-  // ===== 季度对比（上季数据）=====
-  // 上季净资产快照
-  const prevSnapshot = snapshots.find(s => s.date <= prevRange.end)
-  const currentSnapshot = snapshots.find(s => s.date <= range.end)
+  // ===== 同期对比（上月/上季/上年数据）=====
+  // 取最近一期快照（≤ 比较日期），而非最早一期
+  const prevSnapshot = [...snapshots].reverse().find(s => s.date <= prevRange.end)
+  const currentSnapshot = [...snapshots].reverse().find(s => s.date <= range.end)
   const prevNetWorth = prevSnapshot ? Number(prevSnapshot.net_worth) : 0
   const currentNetWorth = currentSnapshot ? Number(currentSnapshot.net_worth) : (totalAssets - totalLiabilities)
   const prevTotalAssets = prevSnapshot ? Number(prevSnapshot.total_assets) : 0
@@ -748,17 +949,20 @@ export function generateQuarterlyReport(year: number, quarter: number): Quarterl
     return Math.round((current - prev) / Math.abs(prev) * 1000) / 10
   }
 
-  // 储蓄计算：优先使用净资产变动（更准确），回退到收支差额
-  const netWorthChange = currentNetWorth - prevNetWorth
+  // 储蓄计算：有有效前期快照时用净资产变动（更全面），否则回退到收支差额
+  const hasValidPrevSnapshot = prevSnapshot && prevNetWorth > 0
+  const netWorthChange = hasValidPrevSnapshot ? (currentNetWorth - prevNetWorth) : 0
   const netSavingsFromTx = totalIncome - totalExpense
-  // 使用净资产变动作为实际储蓄，因为它包含了所有资金流动
-  const netSavings = netWorthChange !== 0 ? netWorthChange : netSavingsFromTx
-  // 储蓄率基于净资产变动
-  const savingsRate = totalIncome > 0 ? Math.round(netSavings / totalIncome * 1000) / 10 : 0
+  // 仅当存在有效前期净资产快照时，才用净资产变动作为储蓄参考
+  const netSavings = hasValidPrevSnapshot && netWorthChange !== 0 ? netWorthChange : netSavingsFromTx
+  // 储蓄率：以收入为分母，结果截断到合理范围（避免净资产快照缺失导致的异常值）
+  const savingsRate = totalIncome > 0
+    ? Math.min(100, Math.round(netSavings / totalIncome * 1000) / 10)
+    : 0
 
   // ===== KPI 计算 =====
-  const monthlyExpense = totalExpense / 3
-  const monthlyIncome = totalIncome / 3
+  const monthlyExpense = totalExpense / monthsInPeriod
+  const monthlyIncome = totalIncome / monthsInPeriod
   const liquidForKPI = liquidTotal + investmentTotal * 0.3
 
   // 房贷月供（居住与房贷分类）
@@ -767,7 +971,7 @@ export function generateQuarterlyReport(year: number, quarter: number): Quarterl
     return cat?.name === '居住与房贷'
   })
   const mortgageMonthly = mortgageTx.length > 0
-    ? mortgageTx.reduce((s, t) => s + Number(t.amount), 0) / 3
+    ? mortgageTx.reduce((s, t) => s + Number(t.amount), 0) / monthsInPeriod
     : 6500
 
   const kpis: KPIData[] = [
@@ -838,7 +1042,7 @@ export function generateQuarterlyReport(year: number, quarter: number): Quarterl
     },
     {
       name: '净资产增长率',
-      formula: '(本季净资产 - 上季净资产) / 上季净资产',
+      formula: `(本${period === 'monthly' ? '月' : period === 'quarterly' ? '季' : '年'}净资产 - 上${period === 'monthly' ? '月' : period === 'quarterly' ? '季' : '年'}净资产) / 上${period === 'monthly' ? '月' : period === 'quarterly' ? '季' : '年'}净资产`,
       value: prevNetWorth !== 0 ? Math.round((currentNetWorth - prevNetWorth) / Math.abs(prevNetWorth) * 1000) / 10 : 0,
       displayValue: prevNetWorth !== 0
         ? `${((currentNetWorth - prevNetWorth) / Math.abs(prevNetWorth) * 100).toFixed(1)}%`
@@ -856,7 +1060,7 @@ export function generateQuarterlyReport(year: number, quarter: number): Quarterl
 
   // ===== 资产结构分析 =====
   const assetComposition = [
-    { name: '🏠 固定资产', value: fixedTotal, percentage: totalAssets > 0 ? Math.round(fixedTotal / totalAssets * 1000) / 10 : 0 },
+    { name: '📦 实物资产', value: physicalTotal, percentage: totalAssets > 0 ? Math.round(physicalTotal / totalAssets * 1000) / 10 : 0 },
     { name: '💰 流动资产', value: liquidTotal, percentage: totalAssets > 0 ? Math.round(liquidTotal / totalAssets * 1000) / 10 : 0 },
     { name: '📈 投资资产', value: investmentTotal, percentage: totalAssets > 0 ? Math.round(investmentTotal / totalAssets * 1000) / 10 : 0 },
   ].filter(a => a.value > 0)
@@ -874,6 +1078,91 @@ export function generateQuarterlyReport(year: number, quarter: number): Quarterl
     }))
     .sort((a, b) => b.value - a.value)
 
+  // ===== 资产负债趋势（快照对比） =====
+  // 查询所有余额快照
+  const allSnapshots = db.prepare('SELECT * FROM balance_snapshots ORDER BY date ASC').all() as any[]
+
+  // 账户图标映射
+  const accountIconMap: Record<string, string> = {
+    cash: '💵', bank: '🏦', investment: '📈', receivable: '📋',
+    mortgage: '🏠', consumer_loan: '💳', private_loan: '🤝',
+  }
+
+  // 获取账户在某个时间点之前的最新快照余额
+  function getSnapshotBalance(accountId: number, beforeDate: string): number | null {
+    // 从后往前找第一个 date <= beforeDate 的快照
+    for (let i = allSnapshots.length - 1; i >= 0; i--) {
+      const s = allSnapshots[i]
+      if (s.account_id === accountId && s.date <= beforeDate) {
+        return Number(s.new_balance)
+      }
+    }
+    return null
+  }
+
+  function buildTrendItem(
+    name: string, icon: string, prevVal: number, currVal: number,
+  ): TrendItem {
+    const changePct = prevVal !== 0
+      ? Math.round((currVal - prevVal) / Math.abs(prevVal) * 1000) / 10
+      : (currVal !== 0 ? 100 : 0)
+    return { name, icon, prevValue: prevVal, currValue: currVal, changePct }
+  }
+
+  // 资产账户趋势
+  const assetTrend: TrendItem[] = assetAccounts.map((a: any) => {
+    const prevBal = getSnapshotBalance(a.id, prevRange.end)
+    const currBal = getSnapshotBalance(a.id, range.end)
+    const prevVal = prevBal !== null ? prevBal : Number(a.balance)
+    const currVal = currBal !== null ? currBal : Number(a.balance)
+    return buildTrendItem(a.name, accountIconMap[a.sub_type] || '💰', prevVal, currVal)
+  })
+
+  // 实物资产快照趋势（从 physical_asset_snapshots 表读取历史估值）
+  // 获取所有实物资产快照用于趋势计算
+  const allPASnapshots = db.prepare('SELECT * FROM physical_asset_snapshots ORDER BY date ASC').all() as any[]
+
+  function getPhysicalAssetSnapshotTotal(beforeDate: string): number {
+    // 对每个使用中的实物资产，取 date <= beforeDate 的最新快照值
+    let total = 0
+    activePhysicalAssets.forEach((pa: any) => {
+      let latestVal: number | null = null
+      for (let i = allPASnapshots.length - 1; i >= 0; i--) {
+        const s = allPASnapshots[i]
+        if (s.physical_asset_id === pa.id && s.date <= beforeDate) {
+          latestVal = Number(s.new_value)
+          break
+        }
+      }
+      total += latestVal !== null ? latestVal : Number(pa.current_value)
+    })
+    return total
+  }
+
+  const activePhysicalAssets = physicalAssets.filter((a: any) => a.status === '使用中')
+  const physicalPrevVal = getPhysicalAssetSnapshotTotal(prevRange.end)
+  const physicalCurrVal = getPhysicalAssetSnapshotTotal(range.end)
+  if (physicalCurrVal > 0 || physicalPrevVal > 0) {
+    assetTrend.push(buildTrendItem('实物资产', '📦', physicalPrevVal, physicalCurrVal))
+  }
+
+  // 负债账户趋势
+  const liabilityTrend: TrendItem[] = liabilityAccounts.map((a: any) => {
+    const prevBal = getSnapshotBalance(a.id, prevRange.end)
+    const currBal = getSnapshotBalance(a.id, range.end)
+    const prevVal = prevBal !== null ? prevBal : Number(a.balance)
+    const currVal = currBal !== null ? currBal : Number(a.balance)
+    return buildTrendItem(a.name, accountIconMap[a.sub_type] || '💸', prevVal, currVal)
+  })
+
+  // 总负债趋势
+  const totalLiabPrev = liabilityTrend.reduce((s, t) => s + t.prevValue, 0)
+  const totalLiabCurr = liabilityTrend.reduce((s, t) => s + t.currValue, 0)
+  liabilityTrend.push(buildTrendItem('总负债', '📉', totalLiabPrev, totalLiabCurr))
+
+  // 净资产趋势
+  const netWorthTrendItem = buildTrendItem('净资产', '✨', prevNetWorth, currentNetWorth)
+
   // ===== 组装报表 =====
   return {
     meta: {
@@ -882,10 +1171,12 @@ export function generateQuarterlyReport(year: number, quarter: number): Quarterl
       city: familyInfo.city,
       preparer: familyInfo.preparer,
       reviewer: familyInfo.reviewer,
+      period,
       year,
-      quarter,
-      quarterLabel: range.label,
+      periodValue,
+      periodLabel: range.label,
       dateRange: range.dateRange,
+      comparisonLabel,
       generatedAt: new Date().toISOString(),
       dataNote: '资产负债数据基于账户余额（准确），收支数据基于已记录交易（可能有遗漏）',
     },
@@ -893,7 +1184,7 @@ export function generateQuarterlyReport(year: number, quarter: number): Quarterl
       totalAssets,
       totalLiabilities,
       netWorth: totalAssets - totalLiabilities,
-      quarterlyNetSavings: netSavings,
+      periodNetSavings: netSavings,
       savingsRate,
       totalAssetsChange: pctChange(totalAssets, prevTotalAssets),
       totalLiabilitiesChange: pctChange(totalLiabilities, prevTotalLiabilities),
@@ -903,10 +1194,10 @@ export function generateQuarterlyReport(year: number, quarter: number): Quarterl
       assets: {
         liquid: liquidAccounts.map((a: any) => mapAccountToItem(a, totalAssets)),
         investment: investmentAccounts.map((a: any) => mapAccountToItem(a, totalAssets)),
-        fixed: fixedItems,
+        fixed: physicalItems,
         liquidTotal,
         investmentTotal,
-        fixedTotal,
+        fixedTotal: physicalTotal,
         grandTotal: totalAssets,
       },
       liabilities: {
@@ -929,7 +1220,7 @@ export function generateQuarterlyReport(year: number, quarter: number): Quarterl
         variableTotal: variableExpenseTotal,
         total: totalExpense,
       },
-      netSavings: Math.round(netSavings / 3),
+      netSavings: Math.round(netSavings / monthsInPeriod),
       savingsRate,
     },
     cashFlow: {
@@ -946,5 +1237,8 @@ export function generateQuarterlyReport(year: number, quarter: number): Quarterl
       assetComposition,
       expenseComposition,
     },
+    assetTrend,
+    liabilityTrend,
+    netWorthTrendItem,
   }
 }

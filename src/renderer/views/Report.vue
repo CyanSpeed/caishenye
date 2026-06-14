@@ -3,37 +3,71 @@
     <div class="report-header-bar">
       <div class="header-left">
         <h1>财务报告</h1>
-        <p class="subtitle">生成季度家庭财务报告</p>
+        <p class="subtitle">{{ subtitleText }}</p>
       </div>
-      <div class="header-actions">
-        <n-select
-          v-model:value="selectedYear"
-          :options="yearOptions"
-          placeholder="年份"
-          style="width: 180px"
-        />
-        <n-select
-          v-model:value="selectedQuarter"
-          :options="quarterOptions"
-          placeholder="季度"
-          style="width: 180px"
-        />
-        <n-button type="primary" :loading="loading" @click="generateReport">
-          <template #icon><FileTextOutlined /></template>
-          生成报告
-        </n-button>
-        <n-button :disabled="!reportHTML" @click="exportPDF">
-          <template #icon><DownloadOutlined /></template>
-          导出 PDF
-        </n-button>
+    </div>
+
+    <!-- 报告类型选择 -->
+    <div class="report-form glass-card">
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">报告类型</label>
+          <div class="period-segmented">
+            <button
+              v-for="opt in periodOptions"
+              :key="opt.value"
+              class="seg-btn"
+              :class="{ active: selectedPeriod === opt.value }"
+              @click="selectedPeriod = opt.value"
+            >{{ opt.emoji }} {{ opt.label }}</button>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">年份</label>
+          <n-select
+            v-model:value="selectedYear"
+            :options="yearOptions"
+            style="width: 140px"
+          />
+        </div>
+
+        <div class="form-group" v-if="selectedPeriod === 'monthly'">
+          <label class="form-label">月份</label>
+          <n-select
+            v-model:value="selectedMonth"
+            :options="monthOptions"
+            style="width: 140px"
+          />
+        </div>
+
+        <div class="form-group" v-if="selectedPeriod === 'quarterly'">
+          <label class="form-label">季度</label>
+          <n-select
+            v-model:value="selectedQuarter"
+            :options="quarterOptions"
+            style="width: 140px"
+          />
+        </div>
+
+        <div class="form-actions">
+          <n-button type="primary" :loading="loading" @click="generateReport">
+            <template #icon><FileTextOutlined /></template>
+            生成报告
+          </n-button>
+          <n-button :disabled="!reportHTML" @click="exportPDF">
+            <template #icon><DownloadOutlined /></template>
+            导出 PDF
+          </n-button>
+        </div>
       </div>
     </div>
 
     <div class="report-preview-container">
       <div v-if="!reportHTML && !loading" class="empty-state glass-card">
         <div class="empty-icon">📊</div>
-        <h3>选择年份和季度，点击"生成报告"</h3>
-        <p>系统将根据您的财务数据自动生成季度财务报告</p>
+        <h3>选择报告类型和时间，点击"生成报告"</h3>
+        <p>支持月报、季报、年报，系统将根据您的财务数据自动生成</p>
       </div>
 
       <n-spin v-if="loading" size="large" class="loading-spin">
@@ -50,10 +84,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import { NSelect, NButton, NSpin, useMessage } from 'naive-ui'
 import { FileTextOutlined, DownloadOutlined } from '@vicons/antd'
-import type { QuarterlyReportData } from '@shared/types'
+import type { ReportData, ReportPeriod } from '@shared/types'
 import { renderReportHTML } from '../utils/reportTemplate'
 import { useColorMode } from '../composables/useColorMode'
 
@@ -63,18 +97,37 @@ const { colorMode } = useColorMode()
 const currentYear = new Date().getFullYear()
 const currentMonth = new Date().getMonth() + 1
 const currentQuarter = Math.ceil(currentMonth / 3)
-// 默认选择上一季度
-const defaultQuarter = currentQuarter > 1 ? currentQuarter - 1 : 4
-const defaultYear = currentQuarter > 1 ? currentYear : currentYear - 1
 
-const selectedYear = ref(defaultYear)
-const selectedQuarter = ref(defaultQuarter)
+// ---- 报告类型 ----
+const periodOptions: { label: string; value: ReportPeriod; emoji: string }[] = [
+  { label: '月报', value: 'monthly', emoji: '📅' },
+  { label: '季报', value: 'quarterly', emoji: '📊' },
+  { label: '年报', value: 'yearly', emoji: '📈' },
+]
+
+const selectedPeriod = ref<ReportPeriod>('quarterly')
+const selectedYear = ref(currentQuarter > 1 ? currentYear : currentYear - 1)
+const selectedMonth = ref(currentMonth > 1 ? currentMonth - 1 : 12)
+const selectedQuarter = ref(currentQuarter > 1 ? currentQuarter - 1 : 4)
 const loading = ref(false)
 const reportHTML = ref('')
+
+const subtitleText = computed(() => {
+  switch (selectedPeriod.value) {
+    case 'monthly': return '生成月度家庭财务报告'
+    case 'quarterly': return '生成季度家庭财务报告'
+    case 'yearly': return '生成年度家庭财务报告'
+  }
+})
 
 const yearOptions = Array.from({ length: 5 }, (_, i) => ({
   label: `${currentYear - i}年`,
   value: currentYear - i,
+}))
+
+const monthOptions = Array.from({ length: 12 }, (_, i) => ({
+  label: `${i + 1}月`,
+  value: i + 1,
 }))
 
 const quarterOptions = [
@@ -88,7 +141,16 @@ async function generateReport() {
   loading.value = true
   reportHTML.value = ''
   try {
-    const data = await window.electronAPI.generateReport(selectedYear.value, selectedQuarter.value) as QuarterlyReportData
+    const periodValue = selectedPeriod.value === 'monthly'
+      ? selectedMonth.value
+      : selectedPeriod.value === 'quarterly'
+        ? selectedQuarter.value
+        : selectedYear.value
+    const data = await window.electronAPI.generateReport(
+      selectedPeriod.value,
+      selectedYear.value,
+      periodValue,
+    ) as ReportData
     reportHTML.value = renderReportHTML(data, colorMode.value)
     message.success('报告生成成功')
   } catch (err: any) {
@@ -101,8 +163,11 @@ async function generateReport() {
 async function exportPDF() {
   if (!reportHTML.value) return
   try {
-    const qNames = ['', 'Q1', 'Q2', 'Q3', 'Q4']
-    const defaultName = `财务报告_${selectedYear.value}年${qNames[selectedQuarter.value]}.pdf`
+    let suffix = ''
+    if (selectedPeriod.value === 'monthly') suffix = `${selectedMonth.value}月`
+    else if (selectedPeriod.value === 'quarterly') suffix = `Q${selectedQuarter.value}`
+    else suffix = '年度'
+    const defaultName = `财务报告_${selectedYear.value}年${suffix}.pdf`
     const result = await window.electronAPI.exportReportPDF(reportHTML.value, defaultName)
     if (result.canceled) return
     message.success(`PDF 已保存到：${result.filePath}`)
@@ -121,9 +186,75 @@ async function exportPDF() {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  margin-bottom: 24px;
+  margin-bottom: 20px;
   flex-wrap: wrap;
   gap: 16px;
+}
+
+/* ---- Report Form ---- */
+.report-form {
+  padding: 24px 28px;
+  margin-bottom: 24px;
+}
+
+.form-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.form-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  letter-spacing: 0.3px;
+}
+
+.form-actions {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+  padding-bottom: 2px;
+}
+
+/* Period Segmented Control */
+.period-segmented {
+  display: flex;
+  gap: 2px;
+  background: var(--border-subtle);
+  border-radius: 10px;
+  padding: 3px;
+}
+
+.seg-btn {
+  padding: 7px 18px;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-muted);
+  background: transparent;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.seg-btn:hover {
+  color: var(--text-primary);
+  background: var(--bg-card-hover);
+}
+
+.seg-btn.active {
+  color: #3B82F6;
+  background: var(--bg-card);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
 }
 
 .header-left h1 {

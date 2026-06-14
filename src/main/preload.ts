@@ -42,7 +42,8 @@ const api = {
   getNetWorthSnapshots: () => ipcRenderer.invoke(IPC_CHANNELS.GET_NET_WORTH_SNAPSHOTS),
 
   // Quarterly Report
-  generateReport: (year: number, quarter: number) => ipcRenderer.invoke(IPC_CHANNELS.GENERATE_REPORT, year, quarter),
+  generateReport: (period: string, year: number, periodValue: number) =>
+    ipcRenderer.invoke(IPC_CHANNELS.GENERATE_REPORT, period, year, periodValue),
   exportReportPDF: (html: string, defaultName?: string) => ipcRenderer.invoke(IPC_CHANNELS.EXPORT_REPORT_PDF, html, defaultName),
 
   // Image Recognition
