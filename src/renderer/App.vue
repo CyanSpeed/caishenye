@@ -31,7 +31,7 @@
                 :options="menuOptions"
                 :collapsed="collapsed"
                 :collapsed-width="64"
-                :collapsed-icon-size="20"
+                :collapsed-icon-size="24"
                 @update:value="handleMenuClick"
               />
 
@@ -87,7 +87,7 @@ const currentRoute = computed(() => route.path)
 // ---- Inline SVG icon components ----
 function makeIcon(paths: () => any[]) {
   return defineComponent({
-    props: { size: { type: Number, default: 18 } },
+    props: { size: { type: Number, default: 24 } },
     setup(p: { size: number }) {
       return () => h('svg', {
         viewBox: '0 0 24 24', width: p.size, height: p.size,
